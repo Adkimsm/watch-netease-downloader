@@ -2,6 +2,7 @@ package io.github.adkimsm.neteasedownloader.net
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
 /** 全局 JSON 配置:忽略未知字段、默认值参与序列化 */
 val NcmJson = Json {
@@ -56,3 +57,82 @@ data class QrcodeUnikeyReq(val type: Int = 3)
 
 @Serializable
 data class QrcodeCheckReq(val key: String, val type: Int = 3)
+
+// ---------- 歌单与歌曲 ----------
+
+@Serializable
+data class UserPlaylistReq(val uid: Long, val limit: Int = 100, val offset: Int = 0, val includeVideo: Boolean = true)
+
+@Serializable
+data class UserPlaylistResp(val code: Int = 0, val playlist: List<PlaylistDto> = emptyList())
+
+@Serializable
+data class PlaylistDto(
+    val id: Long,
+    val name: String,
+    val coverImgUrl: String? = null,
+    val trackCount: Int = 0,
+    val creator: CreatorDto? = null,
+)
+
+@Serializable
+data class CreatorDto(val userId: Long, val nickname: String? = null)
+
+@Serializable
+data class PlaylistDetailReq(val id: Long, val n: Int = 100000, val s: Int = 8)
+
+@Serializable
+data class PlaylistDetailResp(val code: Int = 0, val playlist: PlaylistDetailDto? = null)
+
+@Serializable
+data class PlaylistDetailDto(
+    val id: Long,
+    val name: String,
+    val trackIds: List<TrackIdDto> = emptyList(),
+    val trackCount: Int = 0,
+)
+
+@Serializable
+data class TrackIdDto(val id: Long)
+
+/** v3/song/detail 的 c 参数是 JSON 字符串,序列化时需保持内部转义 */
+@Serializable
+data class SongDetailReq(val c: String)
+
+@Serializable
+data class SongDetailResp(val code: Int = 0, val songs: List<SongDto> = emptyList())
+
+@Serializable
+data class SongDto(
+    val id: Long,
+    val name: String,
+    val ar: List<ArtistDto> = emptyList(),
+    val al: AlbumDto? = null,
+    val dt: Long = 0,
+)
+
+@Serializable
+data class ArtistDto(val id: Long = 0, val name: String = "")
+
+@Serializable
+data class AlbumDto(val id: Long = 0, val name: String = "", val picUrl: String? = null)
+
+@Serializable
+data class SongUrlReq(val ids: String, val level: String, val encodeType: String = "flac")
+
+@Serializable
+data class SongUrlResp(val code: Int = 0, val data: List<SongUrlDto> = emptyList())
+
+@Serializable
+data class SongUrlDto(
+    val id: Long,
+    val url: String? = null,
+    val br: Long = 0,
+    val size: Long = 0,
+    val md5: String? = null,
+    val type: String? = null,
+    val fee: Int = 0,
+    val freeTrialInfo: JsonElement? = null,
+    val level: String? = null,
+)
+

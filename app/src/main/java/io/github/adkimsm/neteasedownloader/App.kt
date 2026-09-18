@@ -1,7 +1,12 @@
 package io.github.adkimsm.neteasedownloader
 
 import android.app.Application
+import io.github.adkimsm.neteasedownloader.data.AppDatabase
 import io.github.adkimsm.neteasedownloader.data.CookieStore
+import io.github.adkimsm.neteasedownloader.data.MediaStoreWriter
+import io.github.adkimsm.neteasedownloader.data.PlaylistDao
+import io.github.adkimsm.neteasedownloader.data.PlaylistSongDao
+import io.github.adkimsm.neteasedownloader.data.SongDao
 import io.github.adkimsm.neteasedownloader.net.NcmApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +20,11 @@ class App : Application() {
         private set
     lateinit var ncmApi: NcmApi
         private set
+    val database: AppDatabase by lazy { AppDatabase(this) }
+    val playlistDao: PlaylistDao by lazy { PlaylistDao(database) }
+    val songDao: SongDao by lazy { SongDao(database) }
+    val playlistSongDao: PlaylistSongDao by lazy { PlaylistSongDao(database) }
+    val mediaStoreWriter: MediaStoreWriter by lazy { MediaStoreWriter(this) }
 
     override fun onCreate() {
         super.onCreate()

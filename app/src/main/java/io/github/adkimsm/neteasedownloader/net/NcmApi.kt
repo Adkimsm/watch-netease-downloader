@@ -95,9 +95,52 @@ class NcmApi(private val cookieProvider: CookieProvider) {
                 ?.get(1)
         }
 
+    // ---------- 歌单与歌曲 ----------
+
+    /** 用户歌单列表 */
+    suspend fun fetchUserPlaylists(uid: Long): List<PlaylistDto> {
+        val resp = eapi("/api/user/playlist", UserPlaylistReq(uid))
+        if (resp.code != 200) throw NcmApiException("歌单列表返回 ${resp.code}")
+        return resp.decode<UserPlaylistResp>().playlist
+    }
+
+    /** 歌单全部曲目 id(v6 详情接口一次性返回 trackIds) */
+    suspend fun fetchPlaylistTrackIds(playlistId: Long): PlaylistDetailDto {
+        val resp = eapi("/api/v6/playlist/detail", PlaylistDetailReq(playlistId))
+        if (resp.code != 200) throw NcmApiException("歌单详情返回 ${resp.code}")
+        return resp.decode<PlaylistDetailResp>().playlist
+            ?: throw NcmApiException("歌单详情为空")
+    }
+
+    /** 批量取歌曲详情(每批 [BATCH_SONG_DETAIL] 首),返回 SongDto 列表 */
+    suspend fun fetchSongDetails(ids: List<Long>): List<SongDto> {
+        val results = mutableListOf<SongDto>()
+        for (chunk in ids.chunked(BATCH_SONG_DETAIL)) {
+            val c = chunk.joinToString(prefix = "[", postfix = "]") { """{"id":$it}""" }
+            val resp = eapi("/api/v3/song/detail", SongDetailReq(c))
+            if (resp.code != 200) throw NcmApiException("歌曲详情返回 ${resp.code}")
+            results += resp.decode<SongDetailResp>().songs
+        }
+        return results
+    }
+
+    /** 批量取下载地址(每批 [BATCH_SONG_URL] 首) */
+    suspend fun fetchSongUrls(ids: List<Long>, level: String): List<SongUrlDto> {
+        val results = mutableListOf<SongUrlDto>()
+        for (chunk in ids.chunked(BATCH_SONG_URL)) {
+            val idsParam = chunk.joinToString(prefix = "[", postfix = "]", transform = { it.toString() })
+            val resp = eapi("/api/song/enhance/player/url/v1", SongUrlReq(idsParam, level))
+            if (resp.code != 200) throw NcmApiException("下载地址返回 ${resp.code}")
+            results += resp.decode<SongUrlResp>().data
+        }
+        return results
+    }
+
     companion object {
         private const val API_DOMAIN = "https://interface.music.163.com"
         private const val IPHONE_UA =
             "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)"
+        private const val BATCH_SONG_DETAIL = 500
+        private const val BATCH_SONG_URL = 50
     }
 }
