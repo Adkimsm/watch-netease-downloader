@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.zxing.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
 }

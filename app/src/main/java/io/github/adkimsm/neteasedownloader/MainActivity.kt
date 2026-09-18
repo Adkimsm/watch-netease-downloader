@@ -1,66 +1,107 @@
 package io.github.adkimsm.neteasedownloader
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
 import io.github.adkimsm.neteasedownloader.ui.LoginScreen
 import io.github.adkimsm.neteasedownloader.ui.LoginUiState
 import io.github.adkimsm.neteasedownloader.ui.LoginViewModel
+import io.github.adkimsm.neteasedownloader.ui.MainViewModel
+import io.github.adkimsm.neteasedownloader.ui.PlaylistScreen
+import io.github.adkimsm.neteasedownloader.ui.SettingsScreen
+import io.github.adkimsm.neteasedownloader.ui.SyncPreviewScreen
+import io.github.adkimsm.neteasedownloader.ui.SyncProgressScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val app = application as App
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    val musicU by app.cookieStore.musicUState.collectAsStateWithLifecycle()
-                    if (musicU.isEmpty()) {
-                        val viewModel: LoginViewModel = viewModel()
-                        val state by viewModel.stateFlow.collectAsStateWithLifecycle()
-                        LaunchedEffect(Unit) {
-                            if (state is LoginUiState.Loading) viewModel.startLogin()
-                        }
-                        LoginScreen(state = state, onRefresh = viewModel::startLogin)
-                    } else {
-                        LoggedInPlaceholder(onLogout = {
-                            app.appScope.launch { app.cookieStore.clear() }
-                        })
-                    }
-                }
+            androidx.compose.material3.MaterialTheme {
+                AppNavigation()
             }
         }
     }
 }
 
 @Composable
-private fun LoggedInPlaceholder(onLogout: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text("已登录", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(12.dp))
-        Button(onClick = onLogout) { Text("退出登录") }
+private fun AppNavigation() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val mainViewModel: MainViewModel = viewModel()
+    val screen by mainViewModel.screen.collectAsStateWithLifecycle()
+
+    // Android 13+ 需要通知权限才能显示同步通知
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    when (screen) {
+        MainViewModel.Screen.LOGIN -> {
+            val loginViewModel: LoginViewModel = viewModel()
+            val state by loginViewModel.stateFlow.collectAsStateWithLifecycle()
+            LaunchedEffect(Unit) {
+                if (state is LoginUiState.Loading) loginViewModel.startLogin()
+            }
+            LoginScreen(state = state, onRefresh = loginViewModel::startLogin)
+        }
+
+        MainViewModel.Screen.PLAYLISTS -> {
+            val playlists by mainViewModel.playlists.collectAsStateWithLifecycle()
+            val progress by mainViewModel.progress.collectAsState()
+            PlaylistScreen(
+                playlists = playlists,
+                syncing = progress.stage == io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.REFRESHING,
+                onToggle = mainViewModel::togglePlaylist,
+                onSyncClick = mainViewModel::startSync,
+                onSettingsClick = mainViewModel::openSettings,
+            )
+        }
+
+        MainViewModel.Screen.PREVIEW -> {
+            mainViewModel.lastDiff?.let { diff ->
+                SyncPreviewScreen(
+                    diff = diff,
+                    onConfirm = mainViewModel::confirmSync,
+                    onDiscard = mainViewModel::discardPreview,
+                )
+            }
+        }
+
+        MainViewModel.Screen.SYNCING -> {
+            val progress by mainViewModel.progress.collectAsState()
+            SyncProgressScreen(progress = progress, onStop = mainViewModel::stopSync)
+        }
+
+        MainViewModel.Screen.SETTINGS -> {
+            val level by mainViewModel.level.collectAsState()
+            SettingsScreen(
+                currentLevel = level,
+                onLevelChange = mainViewModel::setLevel,
+                onBack = mainViewModel::closeSettings,
+                onLogout = mainViewModel::logout,
+            )
+        }
     }
 }

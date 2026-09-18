@@ -62,6 +62,9 @@ class SyncEngine(
     private val _progress = MutableStateFlow(Progress(Stage.REFRESHING, ""))
     val progress = _progress.asStateFlow()
 
+    /** 最近一次差量结果,供 UI 预览确认 */
+    @Volatile var lastDiff: Diff? = null
+
     private val urlCache = HashMap<Long, SongUrlDto>()
 
     private val downloadClient = OkHttpClient.Builder()
@@ -151,6 +154,17 @@ class SyncEngine(
     suspend fun runSync() {
         val diff = refreshAndDiff()
         execute(diff)
+    }
+
+    /** 供服务在异常时把失败状态推进度流 */
+    fun emitError(message: String) {
+        _progress.value = Progress(Stage.FAILED, message)
+    }
+
+    /** 预览页返回时调用,回到空闲态 */
+    fun clearPreview() {
+        lastDiff = null
+        _progress.value = Progress(Stage.REFRESHING, "")
     }
 
     private suspend fun refreshPlaylistTable(remote: List<PlaylistDto>) {
