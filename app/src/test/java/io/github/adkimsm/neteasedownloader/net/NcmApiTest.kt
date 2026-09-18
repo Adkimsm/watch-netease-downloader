@@ -20,6 +20,7 @@ class NcmApiTest {
         assertTrue("unikey 应为非空 UUID", unikey.isNotEmpty())
 
         val resp = api.checkQrcodeLogin(unikey)
-        assertEquals("刚申请的 key 应处于待扫码状态", 801, resp.code)
+        val parsed = resp.decode<QrcodeCheckResp>()
+        assertEquals("刚申请的 key 应处于待扫码状态", 801, parsed.code)
     }
 }

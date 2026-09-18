@@ -19,7 +19,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        cookieStore = CookieStore(this)
+        cookieStore = CookieStore(this, appScope)
         ncmApi = NcmApi(cookieStore)
         appScope.launch { cookieStore.init() }
     }

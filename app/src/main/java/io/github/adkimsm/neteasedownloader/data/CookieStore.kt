@@ -7,8 +7,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.adkimsm.neteasedownloader.net.CookieProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.security.SecureRandom
 
 private val Context.cookieDataStore: DataStore<Preferences> by preferencesDataStore(name = "ncm_cookies")
@@ -16,19 +19,24 @@ private val Context.cookieDataStore: DataStore<Preferences> by preferencesDataSt
 /**
  * 持久化登录凭证与设备标识,并按 eapi 客户端样式拼装 Cookie 头。
  */
-class CookieStore(private val context: Context) : CookieProvider {
+class CookieStore(
+    private val context: Context,
+    appScope: CoroutineScope,
+) : CookieProvider {
     private val secureRandom = SecureRandom()
 
-    private val musicUFlow = context.cookieDataStore.data.map { it[MUSIC_U_KEY].orEmpty() }
-    private val csrfFlow = context.cookieDataStore.data.map { it[CSRF_KEY].orEmpty() }
+    /** 登录态(StateFlow,UI 观察) */
+    val musicUState = context.cookieDataStore.data
+        .map { it[MUSIC_U_KEY].orEmpty() }
+        .stateIn(appScope, SharingStarted.Eagerly, "")
 
     @Volatile private var musicU: String = ""
     @Volatile private var csrf: String = ""
     @Volatile private var deviceId: String = ""
 
     suspend fun init() {
-        musicU = musicUFlow.first()
-        csrf = csrfFlow.first()
+        musicU = musicUState.first()
+        csrf = context.cookieDataStore.data.map { it[CSRF_KEY].orEmpty() }.first()
         deviceId = context.cookieDataStore.data.map { it[DEVICE_ID_KEY].orEmpty() }.first()
         if (deviceId.isEmpty()) {
             deviceId = randomDeviceId()

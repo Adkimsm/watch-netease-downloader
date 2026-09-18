@@ -1,6 +1,15 @@
 package io.github.adkimsm.neteasedownloader.net
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/** 全局 JSON 配置:忽略未知字段、默认值参与序列化 */
+val NcmJson = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+    explicitNulls = false
+    isLenient = true
+}
 
 /** 扫码登录 unikey 响应 */
 @Serializable
