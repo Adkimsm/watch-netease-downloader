@@ -1,6 +1,6 @@
 package io.github.adkimsm.neteasedownloader.data
 
-enum class SongState { DOWNLOADING, OK, FAILED, MISSING_URL }
+enum class SongState { PENDING, DOWNLOADING, OK, FAILED, MISSING_URL }
 
 data class PlaylistEntity(
     val id: Long,
@@ -23,6 +23,7 @@ data class SongEntity(
     val type: String?,
     val state: String, // SongState 名
     val errorCode: String? = null,
+    val localUri: String? = null,
     val updatedAt: Long,
 )
 

@@ -30,6 +30,7 @@ private fun Cursor.toSong(): SongEntity = SongEntity(
     type = getStringByName("type"),
     state = getStringByName("state") ?: SongState.FAILED.name,
     errorCode = getStringByName("errorCode"),
+    localUri = getStringByName("localUri"),
     updatedAt = getLongByName("updatedAt"),
 )
 
@@ -113,6 +114,7 @@ class SongDao(private val db: AppDatabase) {
                     putIfNotNull("type", s.type)
                     put("state", s.state)
                     putIfNotNull("errorCode", s.errorCode)
+                    putIfNotNull("localUri", s.localUri)
                     put("updatedAt", s.updatedAt)
                 }
                 insertWithOnConflict(
@@ -130,6 +132,36 @@ class SongDao(private val db: AppDatabase) {
                 arrayOf<Any?>(state.name, errorCode, System.currentTimeMillis(), songId),
             )
         }
+
+    suspend fun updateLocalResult(
+        songId: Long,
+        state: SongState,
+        localUri: String?,
+        size: Long,
+        md5: String?,
+        br: Long,
+        type: String?,
+        errorCode: String? = null,
+    ) = withContext(Dispatchers.IO) {
+        db.writableDatabase.execSQL(
+            """
+            UPDATE song SET state = ?, localUri = ?, size = ?, md5 = ?, br = ?, type = ?,
+            errorCode = ?, updatedAt = ? WHERE songId = ?
+            """.trimIndent(),
+            arrayOf<Any?>(
+                state.name, localUri, size, md5, br, type, errorCode,
+                System.currentTimeMillis(), songId,
+            ),
+        )
+    }
+
+    /** 上次同步中断留下的 DOWNLOADING 状态,重置为 PENDING 以便重试 */
+    suspend fun resetStaleDownloading() = withContext(Dispatchers.IO) {
+        db.writableDatabase.execSQL(
+            "UPDATE song SET state = ? WHERE state = ?",
+            arrayOf<Any?>(SongState.PENDING.name, SongState.DOWNLOADING.name),
+        )
+    }
 
     suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext

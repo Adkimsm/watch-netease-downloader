@@ -44,6 +44,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 type TEXT,
                 state TEXT NOT NULL,
                 errorCode TEXT,
+                localUri TEXT,
                 updatedAt INTEGER NOT NULL
             )
             """.trimIndent(),

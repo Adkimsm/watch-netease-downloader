@@ -18,6 +18,10 @@ class MediaStoreWriter(private val context: Context) {
 
     fun collectionUri(): Uri = collection
 
+    fun deleteByUriString(uriString: String) {
+        runCatching { resolver.delete(Uri.parse(uriString), null, null) }
+    }
+
     /**
      * 预占位插入一条待下载记录,返回其 Uri;下载成功后调 [markDone],失败调 [delete]。
      */
@@ -52,6 +56,31 @@ class MediaStoreWriter(private val context: Context) {
 
     fun delete(uri: Uri) {
         resolver.delete(uri, null, null)
+    }
+
+    /**
+     * 删除本应用在 MediaStore 中的孤儿记录:
+     * 数据库里已不存在(或 state 非 OK)但 MediaStore 里还留着的 WatchMusic 文件。
+     * 返回被删除的记录条数。
+     */
+    fun deleteOrphans(validUriStrings: Set<String>): Int {
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DISPLAY_NAME,
+            MediaStore.Audio.Media.IS_PENDING,
+        )
+        var deleted = 0
+        resolver.query(collection, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val uri = Uri.withAppendedPath(collection, id.toString())
+                if (uri.toString() !in validUriStrings) {
+                    resolver.delete(uri, null, null)
+                    deleted++
+                }
+            }
+        }
+        return deleted
     }
 
     companion object {
