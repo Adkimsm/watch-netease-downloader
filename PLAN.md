@@ -171,13 +171,31 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
 - [x] **Phase 0**:核对容器工具链(JDK 25 / Gradle 9.5.0 / AGP 9.2.0 / Kotlin 2.3.20);
   工程骨架搭建完成(Compose 空 Activity、自适应图标、version catalog),
   `compileDebugKotlin` 与 `assembleDebug` 均通过(下同)
-- [ ] **Phase 1**:crypto(weapi/eapi) + net 层;打通扫码登录(unikey → zxing 二维码
-  → 轮询 → 持久化 cookie)——最小可演示闭环
-- [ ] **Phase 2**:Room 三表 + DAO + MediaStoreWriter;含大歌单流式入库
-- [ ] **Phase 3**:SyncEngine(diff 引用计数 → 断点续传下载队列 → 硬删除 +
-  孤儿清理)+ 存储预检
-- [ ] **Phase 4**:UI 四屏串起来 + 前台服务通知 + 设置页(音质、退出登录)
-- [ ] **Phase 5**:容器构建 + 手表装机,按 §10 测试清单逐项实测并修问题
+- [x] **Phase 1**:crypto(weapi/eapi,向量化单测)+ net 层(eapi 直连 + cookie 持久化)
+  + 扫码登录 UI(zxing 渲染 + 轮询);live 接口单测通过(unikey/801、歌单详情、歌曲详情、批量 url)
+- [x] **Phase 2**:SQLite 三表(**改用手写 SQLite**:Room 2.8.5 的编译器与 KSP2
+  在 Kotlin 2.3.20 工具链不兼容、KSP1 已移除)+ MediaStoreWriter(Music/WatchMusic/)
+  + 歌单/歌曲批量接口
+- [x] **Phase 3**:SyncEngine(diff 引用计数 / 断点续传 / 硬删除 + 孤儿清理 /
+  存储预检 / md5+size 校验重试)
+- [x] **Phase 4**:UI 四屏(登录/歌单/同步预览/同步进度)+ 设置页(音质档位、退出登录)
+  + SyncService 前台服务(dataSync,进度通知,息屏保活)
+- [ ] **Phase 5**:手表装机,按 §10 测试清单逐项实测并修问题
+
+## 14. 实施纪要(避坑)
+
+- Kotlin 固定 2.3.20;不可降到 2.3.12(该版本的 `org.jetbrains.kotlin.android`
+  插件未发布)。KSP 版本号不等于 Kotlin 版本 —— KSP 2.3.12 的 POM 依赖的正是
+  kotlin-stdlib 2.3.20。
+- Room 2.8.5 + KSP2(KSP 2.3.12)报 `No property named value was found in
+  annotation Query`,上游未适配 Kotlin 2.3.20;KSP1 已从 KSP 2.x 移除。数据层改用
+  framework SQLite 手写三表。
+- Kotlin 2.3 里 `context` 是上下文接收者语法关键字,构造参数/变量避开此名。
+- `collectAsStateWithLifecycle()` 对部分 StateFlow 在 lifecycle 2.9.0 下出现类型
+  推断失败时,用 `collectAsState()` 替代。
+- ViewModel 里属性不可与构造参数同名(`private val app = app as App` 会自引用失效),
+  用 `appRef`。
+- adb 在容器内路径为 `/opt/android-sdk/platform-tools/adb`,已修 `~/bin/adb-docker`。
 
 ---
 
