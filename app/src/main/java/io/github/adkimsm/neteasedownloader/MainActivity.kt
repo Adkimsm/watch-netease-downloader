@@ -8,10 +8,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,13 +29,19 @@ import io.github.adkimsm.neteasedownloader.ui.SettingsScreen
 import io.github.adkimsm.neteasedownloader.ui.SyncPreviewScreen
 import io.github.adkimsm.neteasedownloader.ui.SyncProgressScreen
 import io.github.adkimsm.neteasedownloader.ui.DiagnosticsScreen
+import io.github.adkimsm.neteasedownloader.ui.theme.NeteaseDownloaderTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            androidx.compose.material3.MaterialTheme {
-                AppNavigation()
+            NeteaseDownloaderTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    AppNavigation()
+                }
             }
         }
     }
