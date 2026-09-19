@@ -11,3 +11,6 @@
 *.apk
 *.ap_
 *.dex
+*.jks
+*.keystore
+keystore.properties
