@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.adkimsm.neteasedownloader.App
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
+import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
 import io.github.adkimsm.neteasedownloader.sync.SyncService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +61,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 appRef.syncEngine.refreshPlaylistsOnly()
             }.onFailure { e ->
-                android.util.Log.w("MainViewModel", "自动拉取歌单失败", e)
+                Diag.e("MainViewModel", "自动拉取歌单失败", e)
             }
             refreshPlaylists()
         }

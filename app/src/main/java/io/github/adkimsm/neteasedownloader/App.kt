@@ -47,7 +47,7 @@ class App : Application() {
         instance = this
         Diag.initialize(this)
         installCrashHandler()
-        cookieStore = CookieStore(this, appScope)
+        cookieStore = CookieStore.fromContext(this, appScope)
         ncmApi = NcmApi(cookieStore)
         appScope.launch {
             cookieStore.init()

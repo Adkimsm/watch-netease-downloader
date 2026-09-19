@@ -171,13 +171,20 @@ class SyncEngine(
     /** 仅拉取用户歌单列表(不跑 diff),登录后自动刷新用;返回歌单数 */
     suspend fun refreshPlaylistsOnly(): Int {
         _progress.value = Progress(Stage.REFRESHING, "正在拉取歌单…")
-        val uid = resolveUid()
-        if (uid == 0L) throw IllegalStateException("未登录,请重新扫码")
-        val remotePlaylists = api.fetchUserPlaylists(uid)
-        refreshPlaylistTable(remotePlaylists)
-        _progress.value = Progress(Stage.IDLE, "")
-        Diag.i(TAG_ENGINE, "refreshPlaylistsOnly ok, ${remotePlaylists.size} 个")
-        return remotePlaylists.size
+        try {
+            val uid = resolveUid()
+            if (uid == 0L) throw IllegalStateException("未登录,请重新扫码")
+            val remotePlaylists = api.fetchUserPlaylists(uid)
+            refreshPlaylistTable(remotePlaylists)
+            _progress.value = Progress(Stage.IDLE, "")
+            Diag.i(TAG_ENGINE, "refreshPlaylistsOnly ok, ${remotePlaylists.size} 个")
+            return remotePlaylists.size
+        } catch (e: Exception) {
+            // 失败也要复位进度,否则 UI 一直停在"拉取中"转圈
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            _progress.value = Progress(Stage.IDLE, "")
+            throw e
+        }
     }
 
     private suspend fun resolveUid(): Long {
