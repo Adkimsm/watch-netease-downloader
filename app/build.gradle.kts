@@ -32,7 +32,8 @@ android {
                 keyAlias = props.getValue("keyAlias")
                 keyPassword = props.getValue("keyPassword")
             } else {
-                storeFile = file(System.getenv("KEYSTORE_PATH") ?: "")
+                val ksPath = System.getenv("KEYSTORE_PATH") ?: "app/keystore/release.jks"
+                storeFile = rootProject.file(ksPath)
                 storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("KEY_ALIAS") ?: ""
                 keyPassword = System.getenv("KEY_PASSWORD") ?: ""
