@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import io.github.adkimsm.neteasedownloader.App
+import io.github.adkimsm.neteasedownloader.diag.Diag
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,6 +42,7 @@ class SyncService : Service() {
         scope.launch {
             engine.progress.collectLatest { p ->
                 val text = when (p.stage) {
+                    SyncEngine.Stage.IDLE -> p.message.ifEmpty { "空闲" }
                     SyncEngine.Stage.REFRESHING -> "拉取中:${p.message}"
                     SyncEngine.Stage.READY -> p.message
                     SyncEngine.Stage.DOWNLOADING -> "下载 ${p.done}/${p.total}:${p.message}"
@@ -55,6 +57,7 @@ class SyncService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Diag.i("SyncService", "onStartCommand action=${intent?.action}")
         when (intent?.action) {
             ACTION_REFRESH -> startRefresh()
             ACTION_EXECUTE -> startExecute()
@@ -74,7 +77,11 @@ class SyncService : Service() {
         refreshJob = scope.launch {
             try {
                 engine.lastDiff = engine.refreshAndDiff()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                Diag.i("SyncService", "刷新被取消")
+                throw e
             } catch (e: Exception) {
+                Diag.e("SyncService", "刷新失败:${e.message}", e)
                 engine.emitError(e.message ?: "刷新失败")
             }
         }
@@ -85,7 +92,11 @@ class SyncService : Service() {
         executeJob = scope.launch {
             try {
                 engine.lastDiff?.let { engine.execute(it) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                Diag.i("SyncService", "执行被取消")
+                throw e
             } catch (e: Exception) {
+                Diag.e("SyncService", "同步失败:${e.message}", e)
                 engine.emitError(e.message ?: "同步失败")
             }
         }

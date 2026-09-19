@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.net
 
 import io.github.adkimsm.neteasedownloader.crypto.NcmCrypto
+import io.github.adkimsm.neteasedownloader.diag.Diag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
@@ -58,12 +59,28 @@ class NcmApi(private val cookieProvider: CookieProvider) {
                 .header("Cookie", cookieProvider.cookieHeader())
                 .header("User-Agent", IPHONE_UA)
                 .build()
-            client.newCall(request).execute().use { resp ->
-                val rawBody = resp.body?.string().orEmpty()
-                if (!resp.isSuccessful) {
-                    throw NcmApiException("HTTP ${resp.code}: ${rawBody.take(200)}")
+            val start = System.nanoTime()
+            try {
+                client.newCall(request).execute().use { resp ->
+                    val rawBody = resp.body?.string().orEmpty()
+                    if (!resp.isSuccessful) {
+                        throw NcmApiException("HTTP ${resp.code}: ${rawBody.take(200)}")
+                    }
+                    val result = NcmResponse(resp.code, rawBody, resp.headers("Set-Cookie"))
+                    Diag.i(
+                        "NcmApi",
+                        "${uri.removePrefix("/api/")} -> http=${resp.code} code=${result.code} " +
+                            "耗时=${(System.nanoTime() - start) / 1_000_000}ms",
+                    )
+                    result
                 }
-                NcmResponse(resp.code, rawBody, resp.headers("Set-Cookie"))
+            } catch (e: Exception) {
+                Diag.w(
+                    "NcmApi",
+                    "${uri.removePrefix("/api/")} 异常: ${e.message} " +
+                        "耗时=${(System.nanoTime() - start) / 1_000_000}ms",
+                )
+                throw e
             }
         }
 

@@ -8,8 +8,10 @@ import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
 import io.github.adkimsm.neteasedownloader.sync.SyncService
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,14 +29,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _settingsOpen = MutableStateFlow(false)
     val settingsOpen = _settingsOpen.asStateFlow()
 
+    private val _diagnosticsOpen = MutableStateFlow(false)
+    val diagnosticsOpen = _diagnosticsOpen.asStateFlow()
+
     val lastDiff: SyncEngine.Diff? get() = appRef.syncEngine.lastDiff
 
-    enum class Screen { LOGIN, PLAYLISTS, PREVIEW, SYNCING, SETTINGS }
+    enum class Screen { LOGIN, PLAYLISTS, PREVIEW, SYNCING, SETTINGS, DIAGNOSTICS }
 
-    val screen = combine(loggedIn, progress, settingsOpen) { musicU, p, settings ->
+    val screen = combine(loggedIn, progress, settingsOpen, diagnosticsOpen) { musicU, p, settings, diag ->
         val diff = appRef.syncEngine.lastDiff
         when {
             musicU.isEmpty() -> Screen.LOGIN
+            diag -> Screen.DIAGNOSTICS
             settings -> Screen.SETTINGS
             p.stage == SyncEngine.Stage.DOWNLOADING ||
                 p.stage == SyncEngine.Stage.DELETING -> Screen.SYNCING
@@ -45,9 +51,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             else -> Screen.PLAYLISTS
         }
-    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, Screen.LOGIN)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, Screen.LOGIN)
 
     init {
+        // 首次登录成功后自动拉取歌单列表(只拉列表,不跑 diff),避免歌单页空转
+        viewModelScope.launch {
+            loggedIn.first { it.isNotEmpty() }
+            runCatching {
+                appRef.syncEngine.refreshPlaylistsOnly()
+            }.onFailure { e ->
+                android.util.Log.w("MainViewModel", "自动拉取歌单失败", e)
+            }
+            refreshPlaylists()
+        }
         // 登录态变化时刷新歌单列表;同步完成后也刷一次
         viewModelScope.launch {
             loggedIn.collect { if (it.isNotEmpty()) refreshPlaylists() }
@@ -93,6 +109,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeSettings() {
         _settingsOpen.value = false
+    }
+
+    fun openDiagnostics() {
+        _diagnosticsOpen.value = true
+    }
+
+    fun closeDiagnostics() {
+        _diagnosticsOpen.value = false
+    }
+
+    fun clearDiagnostics() {
+        io.github.adkimsm.neteasedownloader.diag.Diag.clearMemory()
     }
 
     fun setLevel(level: String) {

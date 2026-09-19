@@ -8,6 +8,7 @@ import io.github.adkimsm.neteasedownloader.data.PlaylistDao
 import io.github.adkimsm.neteasedownloader.data.PlaylistSongDao
 import io.github.adkimsm.neteasedownloader.data.SettingsStore
 import io.github.adkimsm.neteasedownloader.data.SongDao
+import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.NcmApi
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +33,7 @@ class App : Application() {
         SyncEngine(
             context = this,
             api = ncmApi,
+            cookieStore = cookieStore,
             settingsStore = settingsStore,
             playlistDao = playlistDao,
             songDao = songDao,
@@ -43,9 +45,25 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        Diag.initialize(this)
+        installCrashHandler()
         cookieStore = CookieStore(this, appScope)
         ncmApi = NcmApi(cookieStore)
-        appScope.launch { cookieStore.init() }
+        appScope.launch {
+            cookieStore.init()
+            Diag.i("App", "cookie init 完成,已登录=${cookieStore.isLoggedIn()}")
+        }
+    }
+
+    private fun installCrashHandler() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Diag.e("CRASH", "FATAL EXCEPTION in ${thread.name}", throwable)
+            Diag.e("CRASH", "文件=${Diag.logFilePath()}")
+            // 给异步文件写留一点时间
+            Thread.sleep(200)
+            previous?.uncaughtException(thread, throwable)
+        }
     }
 
     companion object {

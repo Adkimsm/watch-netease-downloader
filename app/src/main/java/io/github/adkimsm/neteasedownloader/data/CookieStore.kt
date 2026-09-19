@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.adkimsm.neteasedownloader.net.CookieProvider
@@ -30,6 +31,11 @@ class CookieStore(
         .map { it[MUSIC_U_KEY].orEmpty() }
         .stateIn(appScope, SharingStarted.Eagerly, "")
 
+    /** 用户 uid(扫码成功后持久化,用于拉歌单;fetchAccount 失败时不阻塞) */
+    val uidState = context.cookieDataStore.data
+        .map { it[UID_KEY] ?: 0L }
+        .stateIn(appScope, SharingStarted.Eagerly, 0L)
+
     @Volatile private var musicU: String = ""
     @Volatile private var csrf: String = ""
     @Volatile private var deviceId: String = ""
@@ -44,16 +50,17 @@ class CookieStore(
         }
     }
 
-    suspend fun setLogin(musicU: String, csrf: String) {
+    suspend fun setLogin(musicU: String, csrf: String, uid: Long) {
         this.musicU = musicU
         this.csrf = csrf
         context.cookieDataStore.edit {
             it[MUSIC_U_KEY] = musicU
             it[CSRF_KEY] = csrf
+            if (uid != 0L) it[UID_KEY] = uid
         }
     }
 
-    suspend fun clear() = setLogin("", "")
+    suspend fun clear() = setLogin("", "", 0L)
 
     fun isLoggedIn(): Boolean = musicU.isNotEmpty()
 
@@ -83,5 +90,6 @@ class CookieStore(
         private val MUSIC_U_KEY = stringPreferencesKey("MUSIC_U")
         private val CSRF_KEY = stringPreferencesKey("__csrf")
         private val DEVICE_ID_KEY = stringPreferencesKey("deviceId")
+        private val UID_KEY = longPreferencesKey("uid")
     }
 }

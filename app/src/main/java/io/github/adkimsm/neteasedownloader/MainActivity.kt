@@ -24,6 +24,7 @@ import io.github.adkimsm.neteasedownloader.ui.PlaylistScreen
 import io.github.adkimsm.neteasedownloader.ui.SettingsScreen
 import io.github.adkimsm.neteasedownloader.ui.SyncPreviewScreen
 import io.github.adkimsm.neteasedownloader.ui.SyncProgressScreen
+import io.github.adkimsm.neteasedownloader.ui.DiagnosticsScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,7 +73,11 @@ private fun AppNavigation() {
             val progress by mainViewModel.progress.collectAsState()
             PlaylistScreen(
                 playlists = playlists,
-                syncing = progress.stage == io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.REFRESHING,
+                syncing = progress.stage in setOf(
+                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.REFRESHING,
+                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.DOWNLOADING,
+                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.DELETING,
+                ),
                 onToggle = mainViewModel::togglePlaylist,
                 onSyncClick = mainViewModel::startSync,
                 onSettingsClick = mainViewModel::openSettings,
@@ -101,6 +106,17 @@ private fun AppNavigation() {
                 onLevelChange = mainViewModel::setLevel,
                 onBack = mainViewModel::closeSettings,
                 onLogout = mainViewModel::logout,
+                onDiagnostics = mainViewModel::openDiagnostics,
+            )
+        }
+
+        MainViewModel.Screen.DIAGNOSTICS -> {
+            val logs by io.github.adkimsm.neteasedownloader.diag.Diag.logs.collectAsState()
+            DiagnosticsScreen(
+                logs = logs,
+                logFilePath = io.github.adkimsm.neteasedownloader.diag.Diag.logFilePath(),
+                onBack = mainViewModel::closeDiagnostics,
+                onClear = mainViewModel::clearDiagnostics,
             )
         }
     }

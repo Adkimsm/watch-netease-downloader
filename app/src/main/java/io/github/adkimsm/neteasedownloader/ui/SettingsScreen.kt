@@ -23,6 +23,7 @@ fun SettingsScreen(
     onLevelChange: (String) -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onDiagnostics: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Text("设置", style = MaterialTheme.typography.titleMedium)
@@ -39,12 +40,16 @@ fun SettingsScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("返回")
-        }
-        Spacer(Modifier.height(4.dp))
         Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
             Text("退出登录")
+        }
+        Spacer(Modifier.height(4.dp))
+        Button(onClick = onDiagnostics, modifier = Modifier.fillMaxWidth()) {
+            Text("诊断日志")
+        }
+        Spacer(Modifier.height(4.dp))
+        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+            Text("返回")
         }
     }
 }

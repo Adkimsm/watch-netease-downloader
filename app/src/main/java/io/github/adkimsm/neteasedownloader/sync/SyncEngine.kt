@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Environment
 import android.os.StatFs
 import android.util.Log
+import io.github.adkimsm.neteasedownloader.data.CookieStore
 import io.github.adkimsm.neteasedownloader.data.MediaStoreWriter
 import io.github.adkimsm.neteasedownloader.data.PlaylistDao
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
@@ -13,6 +14,7 @@ import io.github.adkimsm.neteasedownloader.data.SettingsStore
 import io.github.adkimsm.neteasedownloader.data.SongDao
 import io.github.adkimsm.neteasedownloader.data.SongEntity
 import io.github.adkimsm.neteasedownloader.data.SongState
+import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.Downloader
 import io.github.adkimsm.neteasedownloader.net.NcmApi
 import io.github.adkimsm.neteasedownloader.net.PlaylistDto
@@ -36,13 +38,14 @@ class StorageShortageException(val estimated: Long, val available: Long) :
 class SyncEngine(
     private val context: Context,
     private val api: NcmApi,
+    private val cookieStore: CookieStore,
     private val settingsStore: SettingsStore,
     private val playlistDao: PlaylistDao,
     private val songDao: SongDao,
     private val playlistSongDao: PlaylistSongDao,
     private val mediaStoreWriter: MediaStoreWriter,
 ) {
-    enum class Stage { REFRESHING, READY, DOWNLOADING, DELETING, DONE, FAILED }
+    enum class Stage { IDLE, REFRESHING, READY, DOWNLOADING, DELETING, DONE, FAILED }
 
     data class Progress(
         val stage: Stage,
@@ -59,7 +62,7 @@ class SyncEngine(
         val availableBytes: Long,
     )
 
-    private val _progress = MutableStateFlow(Progress(Stage.REFRESHING, ""))
+    private val _progress = MutableStateFlow(Progress(Stage.IDLE, ""))
     val progress = _progress.asStateFlow()
 
     /** 最近一次差量结果,供 UI 预览确认 */
@@ -79,16 +82,19 @@ class SyncEngine(
     /** 刷新远端状态并算出差量 */
     suspend fun refreshAndDiff(): Diff {
         _progress.value = Progress(Stage.REFRESHING, "正在检查登录…")
-        val account = api.fetchAccount() ?: throw IllegalStateException("未登录,请重新扫码")
-        val uid = account.id
+        val uid = resolveUid()
+        if (uid == 0L) throw IllegalStateException("未登录,请重新扫码")
+        Diag.i(TAG_ENGINE, "refreshAndDiff 开始, uid=$uid")
 
         _progress.value = Progress(Stage.REFRESHING, "正在拉取歌单…")
         val remotePlaylists = api.fetchUserPlaylists(uid)
         refreshPlaylistTable(remotePlaylists)
+        Diag.i(TAG_ENGINE, "远端歌单 ${remotePlaylists.size} 个")
 
         val enabled = playlistDao.getEnabled()
         if (enabled.isEmpty()) {
             _progress.value = Progress(Stage.READY, "没有勾选的歌单")
+            Diag.i(TAG_ENGINE, "没有勾选的歌单,diff 为空")
             return Diff(emptyList(), emptyList(), 0, 0L, availableBytes())
         }
 
@@ -109,6 +115,11 @@ class SyncEngine(
 
     /** 执行下载与删除 */
     suspend fun execute(diff: Diff) {
+        Diag.i(
+            TAG_ENGINE,
+            "execute: 下载 ${diff.toDownload.size} 首, 删除 ${diff.toDelete.size} 首, " +
+                "跳过 ${diff.missingUrlCount} 首",
+        )
         if (diff.toDownload.isNotEmpty()) {
             _progress.value = Progress(
                 Stage.DOWNLOADING,
@@ -146,6 +157,7 @@ class SyncEngine(
             .mapNotNull { it.localUri }
             .toSet()
         val orphans = mediaStoreWriter.deleteOrphans(validUris)
+        Diag.i(TAG_ENGINE, "孤儿清理 $orphans 项")
 
         _progress.value = Progress(Stage.DONE, "同步完成,清理孤儿 $orphans 项")
     }
@@ -156,15 +168,34 @@ class SyncEngine(
         execute(diff)
     }
 
+    /** 仅拉取用户歌单列表(不跑 diff),登录后自动刷新用;返回歌单数 */
+    suspend fun refreshPlaylistsOnly(): Int {
+        _progress.value = Progress(Stage.REFRESHING, "正在拉取歌单…")
+        val uid = resolveUid()
+        if (uid == 0L) throw IllegalStateException("未登录,请重新扫码")
+        val remotePlaylists = api.fetchUserPlaylists(uid)
+        refreshPlaylistTable(remotePlaylists)
+        _progress.value = Progress(Stage.IDLE, "")
+        Diag.i(TAG_ENGINE, "refreshPlaylistsOnly ok, ${remotePlaylists.size} 个")
+        return remotePlaylists.size
+    }
+
+    private suspend fun resolveUid(): Long {
+        val stored = cookieStore.uidState.value
+        if (stored != 0L) return stored
+        return api.fetchAccount()?.id ?: 0L
+    }
+
     /** 供服务在异常时把失败状态推进度流 */
     fun emitError(message: String) {
+        Diag.e(TAG_ENGINE, "emitError: $message")
         _progress.value = Progress(Stage.FAILED, message)
     }
 
     /** 预览页返回时调用,回到空闲态 */
     fun clearPreview() {
         lastDiff = null
-        _progress.value = Progress(Stage.REFRESHING, "")
+        _progress.value = Progress(Stage.IDLE, "")
     }
 
     private suspend fun refreshPlaylistTable(remote: List<PlaylistDto>) {
@@ -192,6 +223,7 @@ class SyncEngine(
         val detail = api.fetchPlaylistTrackIds(playlist.id)
         val remoteIds = detail.trackIds.map { it.id }
         if (remoteIds.isEmpty()) return
+        Diag.i(TAG_ENGINE, "歌单 ${playlist.id} 曲目 ${remoteIds.size} 首")
 
         val songs = api.fetchSongDetails(remoteIds)
         val existing = songDao.getByIds(remoteIds).associateBy { it.songId }
@@ -252,7 +284,7 @@ class SyncEngine(
                 val urlDto = urlMap[song.songId]
                 val usable = urlDto?.url != null && urlDto.freeTrialInfo == null
                 if (usable) {
-                    urlCache[song.songId] = urlDto!!
+                    urlCache[song.songId] = urlDto
                     withUrl += song
                     songDao.updateLocalResult(
                         songId = song.songId,
@@ -281,6 +313,11 @@ class SyncEngine(
         }
 
         _progress.value = Progress(Stage.READY, "比对完成")
+        Diag.i(
+            TAG_ENGINE,
+            "diff: 待下载=${withUrl.size}, 待删除=${toDelete.size}, " +
+                "缺失url=${missingUrlCount}, 预估=${estimated / MB}MB, 可用=${available / MB}MB",
+        )
         return Diff(withUrl, toDelete, missingUrlCount, estimated, available)
     }
 
@@ -293,10 +330,12 @@ class SyncEngine(
         }
         if (urlDto?.url == null || urlDto.freeTrialInfo != null) {
             songDao.updateState(song.songId, SongState.MISSING_URL, "NO_URL")
+            Diag.w(TAG_ENGINE, "下载跳过 ${song.songId} 缺url/试听")
             return
         }
 
         val fileName = buildFileName(song, urlDto.type)
+        Diag.i(TAG_ENGINE, "开始下载 ${song.songId} ${fileName}, 期望 ${urlDto.size}B")
         val mediaUri = mediaStoreWriter.insertPending(
             fileName = fileName,
             title = song.name,
@@ -315,7 +354,7 @@ class SyncEngine(
         repeat(MAX_ATTEMPTS) { attempt ->
             try {
                 context.contentResolver.openOutputStream(mediaUri, "w")?.use { output ->
-                    val result = downloader.download(urlDto.url!!, output) { written ->
+                    val result = downloader.download(urlDto.url, output) { written ->
                         if (written - lastEmit > PROGRESS_EMIT_STEP) {
                             lastEmit = written
                             _progress.value = _progress.value.copy(
@@ -346,6 +385,7 @@ class SyncEngine(
             } catch (e: Exception) {
                 if (attempt == MAX_ATTEMPTS - 1) {
                     Log.e(TAG, "download failed: ${song.songId}", e)
+                    Diag.e(TAG_ENGINE, "下载失败 ${song.songId}:${e.message}", e)
                     mediaStoreWriter.delete(mediaUri)
                     songDao.updateState(
                         song.songId,
@@ -353,6 +393,7 @@ class SyncEngine(
                         e.javaClass.simpleName + ":" + (e.message ?: ""),
                     )
                 } else {
+                    Diag.w(TAG_ENGINE, "下载重试 ${song.songId} attempt=${attempt + 1}:${e.message}")
                     delay(RETRY_BACKOFF_MS shl attempt)
                 }
             }
@@ -389,6 +430,7 @@ class SyncEngine(
 
     companion object {
         private const val TAG = "SyncEngine"
+        private const val TAG_ENGINE = "SyncEngine"
         private const val MB = 1024 * 1024L
         private const val KB = 1024L
         private const val MAX_ATTEMPTS = 3

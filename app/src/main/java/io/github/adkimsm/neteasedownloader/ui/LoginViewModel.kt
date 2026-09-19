@@ -2,21 +2,24 @@ package io.github.adkimsm.neteasedownloader.ui
 
 import android.app.Application
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.adkimsm.neteasedownloader.App
+import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.NcmAccount
+import io.github.adkimsm.neteasedownloader.net.NcmApiException
 import io.github.adkimsm.neteasedownloader.net.QrcodeCheckResp
 import io.github.adkimsm.neteasedownloader.net.QrcodeStatus
 import io.github.adkimsm.neteasedownloader.net.toStatus
-import io.github.adkimsm.neteasedownloader.net.NcmApiException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 sealed interface LoginUiState {
     data object Loading : LoginUiState
@@ -43,18 +46,30 @@ class LoginViewModel(app: Application) : AndroidViewModel(app) {
     private var pollJob: Job? = null
 
     fun startLogin() {
-        pollJob?.cancel()
+        if (pollJob?.isActive == true) return
         pollJob = viewModelScope.launch {
             state = LoginUiState.Loading
             try {
-                val unikey = api.createQrcodeUnikey()
+                Diag.i(TAG, "申请 unikey…")
+                val unikey = withTimeout(UNIKEY_TIMEOUT_MS) { api.createQrcodeUnikey() }
+                Diag.i(TAG, "unikey 获取成功: $unikey")
+
                 val qrUrl = "https://music.163.com/login?codekey=$unikey"
                 val bitmap = QrRenderer.render(qrUrl, QR_BITMAP_SIZE)
+                Diag.i(TAG, "二维码渲染完成, size=$QR_BITMAP_SIZE")
                 state = LoginUiState.Waiting(bitmap, QrcodeStatus.WAITING_SCAN, "等待扫码")
+
                 while (isActive) {
                     delay(POLL_INTERVAL_MS)
-                    val resp = api.checkQrcodeLogin(unikey)
+                    val resp = try {
+                        withTimeout(POLL_TIMEOUT_MS) { api.checkQrcodeLogin(unikey) }
+                    } catch (e: TimeoutCancellationException) {
+                        Diag.w(TAG, "轮询超时,重试")
+                        updateWaiting(QrcodeStatus.UNKNOWN, "网络抖动,继续等待扫码…")
+                        continue
+                    }
                     val parsed = resp.decode<QrcodeCheckResp>()
+                    Diag.i(TAG, "轮询返回 code=${parsed.code}")
                     when (parsed.toStatus()) {
                         QrcodeStatus.WAITING_SCAN ->
                             updateWaiting(QrcodeStatus.WAITING_SCAN, parsed.message ?: "等待扫码")
@@ -64,12 +79,18 @@ class LoginViewModel(app: Application) : AndroidViewModel(app) {
                             val musicU = api.extractMusicU(resp.setCookies)
                                 ?: throw NcmApiException("登录响应缺少 MUSIC_U")
                             val csrf = extractCookie(resp.setCookies, "__csrf")
-                            cookieStore.setLogin(musicU, csrf)
-                            val account = api.fetchAccount()
+                            Diag.i(TAG, "803 成功,MUSIC_U=${musicU.take(8)}…, csrf=${csrf.take(8)}")
+                            val uid = parsed.account?.id ?: 0L
+                            Diag.i(TAG, "登录 uid=$uid")
+                            cookieStore.setLogin(musicU, csrf, uid)
+                            Diag.i(TAG, "cookie 已持久化")
+                            val account = runCatching { api.fetchAccount() }.getOrNull()
+                            Diag.i(TAG, "fetchAccount=${account?.nickname ?: "null(降级忽略)"}")
                             state = LoginUiState.Success(account)
                             return@launch
                         }
                         QrcodeStatus.EXPIRED -> {
+                            Diag.w(TAG, "二维码过期")
                             state = LoginUiState.Error("二维码已过期,点击刷新重试")
                             return@launch
                         }
@@ -77,8 +98,14 @@ class LoginViewModel(app: Application) : AndroidViewModel(app) {
                             updateWaiting(QrcodeStatus.UNKNOWN, parsed.message ?: "状态:${parsed.code}")
                     }
                 }
+            } catch (e: TimeoutCancellationException) {
+                Diag.w(TAG, "unikey 超时")
+                state = LoginUiState.Error("网络超时,请重试")
+            } catch (e: CancellationException) {
+                Diag.i(TAG, "登录协程被取消")
+                throw e
             } catch (e: Exception) {
-                Log.e(TAG, "login flow failed", e)
+                Diag.e(TAG, "登录流程异常:${e.message}", e)
                 state = LoginUiState.Error(e.message ?: "登录失败")
             }
         }
@@ -102,5 +129,7 @@ class LoginViewModel(app: Application) : AndroidViewModel(app) {
         private const val TAG = "LoginViewModel"
         private const val QR_BITMAP_SIZE = 320
         private const val POLL_INTERVAL_MS = 2500L
+        private const val POLL_TIMEOUT_MS = 10_000L
+        private const val UNIKEY_TIMEOUT_MS = 20_000L
     }
 }
