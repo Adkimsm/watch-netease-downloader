@@ -3,15 +3,13 @@ package io.github.adkimsm.neteasedownloader.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -19,11 +17,32 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.adkimsm.neteasedownloader.R
+import io.github.adkimsm.neteasedownloader.net.QrcodeStatus
+import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
+import io.github.adkimsm.neteasedownloader.ui.components.StateBadge
+import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
+import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
+import io.github.adkimsm.neteasedownloader.ui.theme.StateError
+import io.github.adkimsm.neteasedownloader.ui.theme.StateInfo
+import io.github.adkimsm.neteasedownloader.ui.theme.StateOk
+import io.github.adkimsm.neteasedownloader.ui.theme.StatePending
+import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
+import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
+import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
 
+/**
+ * 登录页。改为上下结构:二维码在上、状态与操作在下 ——
+ * 原实现左右并排在窄屏会把文字挤扁。
+ *
+ * "已扫码待确认"是最需要反馈的时刻(用户正盯着手表等),故与"等待扫码"用不同颜色和文案区分。
+ */
 @Composable
 fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
     Surface(
@@ -31,73 +50,115 @@ fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
         color = MaterialTheme.colorScheme.background,
     ) {
         when (state) {
-            is LoginUiState.Loading -> Column(
-                modifier = Modifier.fillMaxSize(),
+            is LoginUiState.Loading -> CenteredColumn {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = BrandRed,
+                )
+                Spacer(Modifier.height(Spacing.sm))
+                Text(
+                    text = stringResource(R.string.login_generating_qr),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                )
+            }
+
+            is LoginUiState.Waiting -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(Spacing.md),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(28.dp))
-                Spacer(Modifier.height(8.dp))
-                Text("正在生成二维码…", style = MaterialTheme.typography.bodySmall)
-            }
-
-            is LoginUiState.Waiting -> Row(
-                modifier = Modifier.fillMaxSize().padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+                // 二维码必须白底黑码,故保留白色卡片 + 留白(quiet zone)
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = androidx.compose.ui.graphics.Color.White,
+                    shape = RoundedCornerShape(Spacing.sm),
+                    color = Color.White,
                 ) {
                     Image(
                         painter = BitmapPainter(state.qrBitmap.asImageBitmap()),
-                        contentDescription = "网易云登录二维码",
-                        modifier = Modifier.size(150.dp).padding(4.dp),
+                        contentDescription = stringResource(R.string.login_qr_content_desc),
+                        modifier = Modifier
+                            .fillMaxWidth(0.62f)
+                            .padding(Spacing.sm),
                     )
                 }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        "网易云App扫码登录",
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        state.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Start,
+                Spacer(Modifier.height(Spacing.md))
+
+                val (badgeColor, badgeText) = statusAppearance(state)
+                StateBadge(text = badgeText, color = badgeColor)
+
+                if (state.status == QrcodeStatus.EXPIRED) {
+                    Spacer(Modifier.height(Spacing.md))
+                    PrimaryButton(
+                        text = stringResource(R.string.login_refresh_qr),
+                        onClick = onRefresh,
+                        modifier = Modifier.fillMaxWidth(0.8f),
                     )
                 }
             }
 
-            is LoginUiState.Success -> Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    "登录成功",
-                    style = MaterialTheme.typography.titleMedium,
+            is LoginUiState.Success -> CenteredColumn {
+                StateBadge(
+                    text = stringResource(R.string.login_success),
+                    color = StateOk,
                 )
                 state.account?.nickname?.let { nickname ->
-                    Spacer(Modifier.height(4.dp))
-                    Text(nickname, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(Spacing.sm))
+                    Text(
+                        text = nickname,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary,
+                    )
                 }
             }
 
-            is LoginUiState.Error -> Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
+            is LoginUiState.Error -> CenteredColumn {
                 Text(
-                    state.message,
+                    text = stringResource(R.string.login_expired),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = StateError,
+                )
+                Spacer(Modifier.height(Spacing.xs))
+                Text(
+                    text = state.message,
                     style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = onRefresh) { Text("重试") }
+                Spacer(Modifier.height(Spacing.md))
+                PrimaryButton(
+                    text = stringResource(R.string.login_refresh_qr),
+                    onClick = onRefresh,
+                    modifier = Modifier.fillMaxWidth(0.8f),
+                )
             }
         }
+    }
+}
+
+/**
+ * 按扫码状态给出颜色与文案:色 + 文案双重编码,不单靠颜色。
+ * "已扫码待确认"用警示色,因为此刻用户会一直盯着手表等结果。
+ */
+@Composable
+private fun statusAppearance(state: LoginUiState.Waiting): Pair<Color, String> = when (state.status) {
+    QrcodeStatus.SCANNED -> StateWarn to stringResource(R.string.login_scanned)
+    QrcodeStatus.EXPIRED -> StateError to stringResource(R.string.login_expired)
+    QrcodeStatus.SUCCESS -> StateOk to stringResource(R.string.login_success)
+    QrcodeStatus.UNKNOWN -> StatePending to state.message
+    else -> StateInfo to state.message
+}
+
+@Composable
+private fun CenteredColumn(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Spacing.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        content()
     }
 }
