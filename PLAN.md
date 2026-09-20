@@ -14,6 +14,7 @@
 | 工作目录(宿主机) | `~/code/watchmusic` → 容器内 `/workspace/watchmusic` |
 | 目标设备 | OPPO Watch 3(国行,ColorOS Watch 2.1,类 Android 11 基线,1.75" 372×194 屏) |
 | 安装方式 | `adb-docker install -r` 侧载普通 APK(非 Wear OS) |
+| 屏幕适配 | 按窗口短边分 Compact(<300dp)/ Medium(300~360dp)/ Expanded(≥360dp),见 Phase 4.6 |
 
 ## 1. 核心决策(已与用户确认,不再变动)
 
@@ -186,6 +187,14 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   6 屏全部重排,中文文案迁入 strings.xml;
   落实「任何等待都有 loading」:骨架屏(200ms 延迟防闪烁)、按钮内联 loading、
   行内 loading、确认对话框、失败错误条;补 ETA 与停止二次确认
+- [x] **Phase 4.6**:小屏自适应(为手表尺寸做真正的适配,而非只调固定值):
+  新增 `theme/WindowSizing.kt` —— 按窗口**短边**划分 Compact(<300dp)/ Medium(300~360dp)/ Expanded(≥360dp),
+  每档导出一整套尺寸令牌,经 `LocalWindowSizing` 由主题下发;各屏不再直接取 `Dimens` 固定值。
+  **首页**:底栏按档位收缩(极窄屏省略分隔线与计数行,只留主按钮),把垂直空间还给列表;
+  **下载页**:上半内容改为可滚动 + 停止按钮恒定可见(原先 `Spacer(weight(1f))` 在矮屏会把按钮顶出屏外且无法滚动到),
+  极窄屏把总数并入百分比行并降一档字号。
+  同步覆盖登录(二维码按档位收窄)、预览、设置页;补 11 个档位边界与单调性单测。
+  验证:`compileDebugKotlin` / `testDebugUnitTest`(40→51 个测试全过)/ `assembleDebug` 均通过。
 - [ ] **Phase 5**:手表装机,按 §10 测试清单逐项实测并修问题
 
 ## 14. 实施纪要(避坑)
@@ -214,6 +223,18 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
 - **工具链注意**:写入含反引号的 Kotlin 行(如反引号测试名)时,编辑工具可能
   把该行拼坏。测试函数名改用普通 camelCase,或改用脚本写文件。
 - 全量单测连续跑 10 次均通过(40 个测试,含 Phase 4.5 新增 21 个),已排除 flaky。
+- **尺寸令牌要逐项缩放,不能整体乘系数**:触控目标有硬下限(手表上 <36dp 很难点中),
+  而封面/图标这类纯装饰项可以放心缩小。WindowSizing 因此逐字段声明而非用 scale 因子。
+- **矮屏的“底栏”必须可滚动或固定,不能靠 `Spacer(weight(1f))` 顶**:
+  进度页原写法在内容高于窗口时会把停止按钮顶出可视区,且没有滚动容器可拉回来 ——
+  这类“按钮可达性”缺陷在真机上才暴露,静态看代码不报错。
+- **档位阈值比的是 dp,不是物理像素**:`Configuration.screenWidthDp/HeightDp` 已是 dp,
+  而 `wm size` 报的是 px。必须配合 `wm density` 换算(`dp = px / (density/160)`),
+  直接把 px 当 dp 比会算错档位。例如 372×430 px @ density 320(2.0x)= 186×215 dp → **Compact**;
+  同样是 372 px 宽,若 density 为 160 则是 372 dp → Expanded。
+  **装机后先用 `adb-docker shell wm size; wm density` 实测再核对档位**,
+  并注意 PLAN §0 记的「372×194」缺 density、且 194 对真实手表的高度明显偏小,疑似笔误。
+  阈值 299/300/359/360 的边界已用单测钉住,改阈值前先看 `WindowSizingTest`。
 
 ---
 

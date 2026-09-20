@@ -45,6 +45,24 @@ class WindowSizingTest {
     }
 
     @Test
+    fun realWatchCheck_372x430px_atDensity320_isCompact() {
+        // 372×430 px @ density 320(2.0x)= 186×215 dp。
+        // 这是手表上最可能的实际情况(小圆表把 px 密度拉得很高),落在 Compact。
+        // 固定该换算,避免后人把 px 当 dp 直接比。
+        assertEquals(WindowClass.Compact, windowClassFor(minOf(186, 215)))
+    }
+
+    @Test
+    fun dpConversion_explainsWhyPxMustNotBeComparedDirectly() {
+        // 同为 372 px 宽,密度不同则 dp 不同,档位也不同 ——
+        // 故档位只能用 dp 判定。
+        val atDensity160 = (372 * 160 / 160) // = 372 dp
+        val atDensity320 = (372 * 160 / 320) // = 186 dp
+        assertEquals(WindowClass.Expanded, windowClassFor(atDensity160))
+        assertEquals(WindowClass.Compact, windowClassFor(atDensity320))
+    }
+
+    @Test
     fun touchTarget_neverBelowComfortableMinimum() {
         // 触控目标逐档收缩,但任何档位都不得低于 36dp,否则手表上难以点中
         WindowClass.entries.forEach { wc ->
