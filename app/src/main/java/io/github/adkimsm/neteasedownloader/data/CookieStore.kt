@@ -49,7 +49,11 @@ class CookieStore(
             .onEach { prefs ->
                 musicU = prefs[MUSIC_U_KEY].orEmpty()
                 csrf = prefs[CSRF_KEY].orEmpty()
-                deviceId = prefs[DEVICE_ID_KEY].orEmpty()
+                // deviceId 是一次性生成的:只有磁盘上确实存在时才镜像。
+                // 否则本收集器可能在 init() 的写盘落地前先收到一份空快照,
+                // 把刚生成的 deviceId 抹回空串,导致 cookie 头缺 deviceId、
+                // 服务端鉴权偶发失败(单测 init_generatesDeviceId_whenMissing 即复现此竞态)。
+                prefs[DEVICE_ID_KEY]?.takeIf { it.isNotEmpty() }?.let { deviceId = it }
             }
             .launchIn(appScope)
     }
