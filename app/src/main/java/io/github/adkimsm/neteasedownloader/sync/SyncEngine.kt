@@ -52,6 +52,12 @@ class SyncEngine(
         val message: String,
         val total: Int = 0,
         val done: Int = 0,
+        /**
+         * 本轮 DOWNLOADING 的起始时刻(ms)。
+         * 供 UI 计算速率与 ETA;其他阶段为 0(那些阶段没有分母,不显示 ETA)。
+         * 有默认值,故所有旧构造调用无需修改。
+         */
+        val startedAt: Long = 0L,
     )
 
     data class Diff(
@@ -121,11 +127,13 @@ class SyncEngine(
                 "跳过 ${diff.missingUrlCount} 首",
         )
         if (diff.toDownload.isNotEmpty()) {
+            val downloadStartedAt = System.currentTimeMillis()
             _progress.value = Progress(
                 Stage.DOWNLOADING,
                 "开始下载 ${diff.toDownload.size} 首…",
                 diff.toDownload.size,
                 0,
+                startedAt = downloadStartedAt,
             )
             diff.toDownload.forEachIndexed { index, song ->
                 ensureActive()
@@ -134,6 +142,7 @@ class SyncEngine(
                     "${song.artist} - ${song.name}",
                     diff.toDownload.size,
                     index,
+                    startedAt = downloadStartedAt,
                 )
                 downloadSong(song)
             }
