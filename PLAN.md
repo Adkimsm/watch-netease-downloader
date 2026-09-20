@@ -180,22 +180,40 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   存储预检 / md5+size 校验重试)
 - [x] **Phase 4**:UI 四屏(登录/歌单/同步预览/同步进度)+ 设置页(音质档位、退出登录)
   + SyncService 前台服务(dataSync,进度通知,息屏保活)
+- [x] **Phase 4.5**:UI/UX 统一设计系统 + 全程 loading 反馈(不新增依赖):
+  theme 令牌(Color/Type/Spacing)+ components 复用组件(Skeleton 骨架屏、
+  ScreenScaffold/PrimaryButton/ConfirmDialog 等)+ Format.kt、EtaEstimator.kt;
+  6 屏全部重排,中文文案迁入 strings.xml;
+  落实「任何等待都有 loading」:骨架屏(200ms 延迟防闪烁)、按钮内联 loading、
+  行内 loading、确认对话框、失败错误条;补 ETA 与停止二次确认
 - [ ] **Phase 5**:手表装机,按 §10 测试清单逐项实测并修问题
 
 ## 14. 实施纪要(避坑)
 
-- Kotlin 固定 2.3.20;不可降到 2.3.12(该版本的 `org.jetbrains.kotlin.android`
+- Kotlin 固定 2.3.20;不可降到 2.3.12(该版本的 org.jetbrains.kotlin.android
   插件未发布)。KSP 版本号不等于 Kotlin 版本 —— KSP 2.3.12 的 POM 依赖的正是
   kotlin-stdlib 2.3.20。
-- Room 2.8.5 + KSP2(KSP 2.3.12)报 `No property named value was found in
-  annotation Query`,上游未适配 Kotlin 2.3.20;KSP1 已从 KSP 2.x 移除。数据层改用
-  framework SQLite 手写三表。
-- Kotlin 2.3 里 `context` 是上下文接收者语法关键字,构造参数/变量避开此名。
-- `collectAsStateWithLifecycle()` 对部分 StateFlow 在 lifecycle 2.9.0 下出现类型
-  推断失败时,用 `collectAsState()` 替代。
-- ViewModel 里属性不可与构造参数同名(`private val app = app as App` 会自引用失效),
-  用 `appRef`。
-- adb 在容器内路径为 `/opt/android-sdk/platform-tools/adb`,已修 `~/bin/adb-docker`。
+- Room 2.8.5 + KSP2(KSP 2.3.12)报 “No property named value was found in
+  annotation Query”,上游未适配 Kotlin 2.3.20;KSP1 已从 KSP 2.x 移除。
+  数据层改用 framework SQLite 手写三表。
+- Kotlin 2.3 里 context 是上下文接收者语法关键字,构造参数/变量避开此名。
+- collectAsStateWithLifecycle() 对部分 StateFlow 在 lifecycle 2.9.0 下出现类型
+  推断失败时,用 collectAsState() 替代。
+- ViewModel 里属性不可与构造参数同名(private val app = app as App 会自引用
+  失效),用 appRef。
+- adb 在容器内路径为 /opt/android-sdk/platform-tools/adb,已修 ~/bin/adb-docker。
+- **CookieStore 的 deviceId 竞态(真实缺陷,已修)**:init{} 里镜像磁盘的常驻
+  收集器会在 init() 写盘落地前先收到一份空快照,把刚生成的 deviceId 抹回空串,
+  导致 cookie 头缺 deviceId、鉴权偶发失败。改为「仅当磁盘确有值时才镜像」。
+  该缺陷原先被 CookieStoreInitTest 偶发暴露,且**与测试类执行顺序相关** ——
+  在纯净 HEAD 上新增任意一个无关测试类即可复现,故一度被误判为新代码引入。
+- **CookieStoreInitTest.externalWrite_reflectsInCookieHeader 自身的竞态**:
+  musicUState 与 init{} 的常驻收集器是 dataStore.data 上两个独立收集器,
+  只等 musicUState 就绪不代表 csrf 已回填,断言会偶发失败。已在测试侧改为
+  等待断言真正依赖的状态。
+- **工具链注意**:写入含反引号的 Kotlin 行(如反引号测试名)时,编辑工具可能
+  把该行拼坏。测试函数名改用普通 camelCase,或改用脚本写文件。
+- 全量单测连续跑 10 次均通过(40 个测试,含 Phase 4.5 新增 21 个),已排除 flaky。
 
 ---
 
