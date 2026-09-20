@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,9 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
 import io.github.adkimsm.neteasedownloader.ui.components.ConfirmDialog
@@ -30,18 +33,25 @@ import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedMuted
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
+import io.github.adkimsm.neteasedownloader.ui.theme.WindowClass
 
 /**
- * 同步进度页。
+ * 同步进度页(下载页)。
  *
  * 同时承载下载/清理与「拉取+差量」两个阶段 ——
  * 后者可能持续数分钟(3742 首的歌单),原先留在歌单页只有底部一个小转圈。
  *
- * 新增:大号百分比 + ETA(formatted from startedAt)+ 停止二次确认。
+ * 大号百分比 + ETA(formatted from startedAt)+ 停止二次确认。
+ *
+ * 小屏适配要点:
+ *  - 停止按钮原先靠 `Spacer(weight(1f))` 顶到底部。纵向内容在矮屏上会超出可用高度,
+ *    按钮被挤出可视区且无法滚动 → 改为「内容区可滚动 + 按钮始终固定可见」,
+ *    保证任何窗口尺寸下停止都是可达的。
+ *  - 极窄屏把总数并进百分比同一行,并把大数字降一档,节省两行高度。
  */
 @Composable
 fun SyncProgressScreen(progress: SyncEngine.Progress, onStop: () -> Unit) {
@@ -78,76 +88,104 @@ fun SyncProgressScreen(progress: SyncEngine.Progress, onStop: () -> Unit) {
         }
     }
 
+    val sizing = LocalWindowSizing.current
+    val compact = sizing.windowClass == WindowClass.Compact
+
     ScreenScaffold(title = stageTitle(progress.stage)) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(Spacing.md))
+            // 上半部分可滚动:矮屏上内容再高也不会把停止按钮顶出屏幕
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(sizing.gapMd))
 
-            if (percent != null) {
+                if (percent != null) {
+                    Text(
+                        text = if (compact) {
+                            // 极窄屏:百分比与总数合并成一行,省一行高度
+                            stringResource(
+                                R.string.progress_percent_with_total,
+                                percent,
+                                progress.done,
+                                progress.total,
+                            )
+                        } else {
+                            "$percent%"
+                        },
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontSize = sizing.progressPercentSp.sp,
+                            lineHeight = (sizing.progressPercentSp + 6).sp,
+                            fontWeight = FontWeight.W500,
+                        ),
+                        color = TextPrimary,
+                    )
+                    if (!compact) {
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(
+                            text = stringResource(
+                                R.string.progress_done_of_total,
+                                progress.done,
+                                progress.total,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(sizing.gapMd))
+                if (fraction != null) {
+                    LinearProgressIndicator(
+                        progress = { fraction },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(sizing.progressBar)
+                            .clip(RoundedCornerShape(sizing.progressBar / 2)),
+                        color = BrandRed,
+                        trackColor = BrandRedMuted,
+                    )
+                } else {
+                    // 无分母阶段(拉取/清理):不确定态进度条
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(sizing.progressBar)
+                            .clip(RoundedCornerShape(sizing.progressBar / 2)),
+                        color = BrandRed,
+                        trackColor = BrandRedMuted,
+                    )
+                }
+
+                Spacer(Modifier.height(sizing.gapMd))
                 Text(
-                    text = "$percent%",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = TextPrimary,
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                Text(
-                    text = stringResource(
-                        R.string.progress_done_of_total,
-                        progress.done,
-                        progress.total,
-                    ),
+                    text = progress.message,
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    maxLines = if (compact) 3 else 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = sizing.gapSm),
                 )
+
+                etaText?.let { eta ->
+                    Spacer(Modifier.height(Spacing.xs))
+                    Text(
+                        text = stringResource(R.string.progress_eta_label, eta),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextPrimary,
+                    )
+                }
             }
 
-            Spacer(Modifier.height(Spacing.md))
-            if (fraction != null) {
-                LinearProgressIndicator(
-                    progress = { fraction },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(Dimens.ProgressBar)
-                        .clip(RoundedCornerShape(Dimens.ProgressBar / 2)),
-                    color = BrandRed,
-                    trackColor = BrandRedMuted,
-                )
-            } else {
-                // 无分母阶段(拉取/清理):不确定态进度条
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(Dimens.ProgressBar)
-                        .clip(RoundedCornerShape(Dimens.ProgressBar / 2)),
-                    color = BrandRed,
-                    trackColor = BrandRedMuted,
-                )
-            }
-
-            Spacer(Modifier.height(Spacing.md))
-            Text(
-                text = progress.message,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = Spacing.sm),
-            )
-
-            etaText?.let { eta ->
-                Spacer(Modifier.height(Spacing.xs))
-                Text(
-                    text = eta,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextPrimary,
-                )
-            }
-
-            Spacer(Modifier.weight(1f))
-
+            // 停止按钮固定在最下方,始终可达(不再被纵向内容挤出屏幕)
+            Spacer(Modifier.height(sizing.gapSm))
             SecondaryButton(
                 text = if (stopping) {
                     stringResource(R.string.progress_stopping)

@@ -28,7 +28,9 @@ import io.github.adkimsm.neteasedownloader.net.QrcodeStatus
 import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.StateBadge
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
+import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
+import io.github.adkimsm.neteasedownloader.ui.theme.WindowClass
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.StateInfo
 import io.github.adkimsm.neteasedownloader.ui.theme.StateOk
@@ -45,6 +47,9 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
  */
 @Composable
 fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
+    val sizing = LocalWindowSizing.current
+    // 二维码是登录页唯一的操作入口,窄窗口下收窄一档,避免被状态文案挤出屏幕
+    val qrWidthFraction = if (sizing.windowClass == WindowClass.Compact) 0.5f else 0.58f
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -55,7 +60,7 @@ fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
                     modifier = Modifier.size(28.dp),
                     color = BrandRed,
                 )
-                Spacer(Modifier.height(Spacing.sm))
+                Spacer(Modifier.height(sizing.gapSm))
                 Text(
                     text = stringResource(R.string.login_generating_qr),
                     style = MaterialTheme.typography.bodyMedium,
@@ -66,7 +71,7 @@ fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
             is LoginUiState.Waiting -> Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(Spacing.md),
+                    .padding(sizing.gapMd),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -79,17 +84,17 @@ fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
                         painter = BitmapPainter(state.qrBitmap.asImageBitmap()),
                         contentDescription = stringResource(R.string.login_qr_content_desc),
                         modifier = Modifier
-                            .fillMaxWidth(0.62f)
-                            .padding(Spacing.sm),
+                            .fillMaxWidth(qrWidthFraction)
+                            .padding(sizing.gapSm),
                     )
                 }
-                Spacer(Modifier.height(Spacing.md))
+                Spacer(Modifier.height(sizing.gapMd))
 
                 val (badgeColor, badgeText) = statusAppearance(state)
                 StateBadge(text = badgeText, color = badgeColor)
 
                 if (state.status == QrcodeStatus.EXPIRED) {
-                    Spacer(Modifier.height(Spacing.md))
+                    Spacer(Modifier.height(sizing.gapMd))
                     PrimaryButton(
                         text = stringResource(R.string.login_refresh_qr),
                         onClick = onRefresh,
@@ -104,7 +109,7 @@ fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
                     color = StateOk,
                 )
                 state.account?.nickname?.let { nickname ->
-                    Spacer(Modifier.height(Spacing.sm))
+                    Spacer(Modifier.height(sizing.gapSm))
                     Text(
                         text = nickname,
                         style = MaterialTheme.typography.titleMedium,
@@ -126,7 +131,7 @@ fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(Spacing.md))
+                Spacer(Modifier.height(sizing.gapMd))
                 PrimaryButton(
                     text = stringResource(R.string.login_refresh_qr),
                     onClick = onRefresh,
@@ -152,10 +157,11 @@ private fun statusAppearance(state: LoginUiState.Waiting): Pair<Color, String> =
 
 @Composable
 private fun CenteredColumn(content: @Composable () -> Unit) {
+    val sizing = LocalWindowSizing.current
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(Spacing.md),
+            .padding(sizing.gapMd),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.ui.components.ErrorBanner
@@ -30,19 +29,24 @@ import io.github.adkimsm.neteasedownloader.ui.components.PlaylistRow
 import io.github.adkimsm.neteasedownloader.ui.components.PlaylistSkeletonList
 import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
+import io.github.adkimsm.neteasedownloader.ui.theme.WindowClass
 
 /**
- * 歌单列表页。
+ * 歌单列表页(首页)。
  *
  * 加载态分三级,避免"静止画面":
  *  - 首次/刷新拉取中 → 骨架屏(原实现只有一行居中文字)
  *  - 某行写库中      → 该行内联 loading
  *  - 引擎失败        → 顶部错误条 + 重试(原实现里失败原因完全无处显示)
+ *
+ * 小屏适配:底部原本恒占「选中计数 + 分隔线 + 主按钮」三行,在 430px 高的表上
+ * 会把列表挤到只剩两三行。改为列表可伸缩 + 底栏收缩,极窄屏进一步隐藏计数行,
+ * 把有限的垂直空间优先让给歌单本身。
  */
 @Composable
 fun PlaylistScreen(
@@ -56,17 +60,21 @@ fun PlaylistScreen(
     errorMessage: String? = null,
     onDismissError: () -> Unit = {},
 ) {
+    val sizing = LocalWindowSizing.current
+    val compact = sizing.windowClass == WindowClass.Compact
+
     ScreenScaffold(
         title = stringResource(R.string.playlist_title),
         action = {
             IconButton(
                 onClick = onSettingsClick,
-                modifier = Modifier.size(Dimens.TouchTarget),
+                modifier = Modifier.size(sizing.touchTarget),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Settings,
                     contentDescription = stringResource(R.string.playlist_settings),
                     tint = TextPrimary,
+                    modifier = Modifier.size(sizing.iconSize),
                 )
             }
         },
@@ -78,7 +86,7 @@ fun PlaylistScreen(
                     onRetry = onSyncClick,
                     onDismiss = onDismissError,
                 )
-                Spacer(Modifier.height(Spacing.sm))
+                Spacer(Modifier.height(sizing.gapSm))
             }
 
             val selectedCount = playlists.count { it.enabled }
@@ -110,23 +118,36 @@ fun PlaylistScreen(
                 }
             }
 
-            // 底部操作区固定:歌单再多也不会把「立即同步」挤出屏幕
-            Spacer(Modifier.height(Spacing.sm))
-            HDivider()
-            Spacer(Modifier.height(Spacing.sm))
+            // 底部操作区固定,但按屏幕档次收缩:
+            // 极窄屏省略计数行与分隔线,只保留主按钮,避免把列表压没。
+            Spacer(Modifier.height(sizing.gapSm))
 
-            Text(
-                text = if (selectedCount == 0) {
-                    stringResource(R.string.playlist_selected_none)
-                } else {
-                    stringResource(R.string.playlist_selected_count, selectedCount)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = if (selectedCount == 0) TextDisabled else TextSecondary,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(Spacing.xs))
+            if (!compact) {
+                HDivider()
+                Spacer(Modifier.height(sizing.gapSm))
+                Text(
+                    text = if (selectedCount == 0) {
+                        stringResource(R.string.playlist_selected_none)
+                    } else {
+                        stringResource(R.string.playlist_selected_count, selectedCount)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selectedCount == 0) TextDisabled else TextSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(Spacing.xs))
+            } else if (selectedCount > 0) {
+                // 极窄屏:把计数压进按钮上方一行小字,仍让用户知道选了几张
+                Text(
+                    text = stringResource(R.string.playlist_selected_count, selectedCount),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(Spacing.xs))
+            }
 
             PrimaryButton(
                 text = if (syncing) {

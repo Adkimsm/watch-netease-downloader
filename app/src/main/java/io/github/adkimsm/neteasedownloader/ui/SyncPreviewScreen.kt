@@ -25,6 +25,7 @@ import io.github.adkimsm.neteasedownloader.ui.components.StatRow
 import io.github.adkimsm.neteasedownloader.ui.components.StatSkeleton
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedMuted
+import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
@@ -45,6 +46,7 @@ fun SyncPreviewScreen(
     onConfirm: () -> Unit,
     onDiscard: () -> Unit,
 ) {
+    val sizing = LocalWindowSizing.current
     val storageShort = isStorageShort(diff.estimatedBytes, diff.availableBytes)
     val hasChanges = diff.toDownload.isNotEmpty() || diff.toDelete.isNotEmpty()
 
@@ -61,13 +63,13 @@ fun SyncPreviewScreen(
                     valueColor = BrandRed,
                     emphasized = true,
                 )
-                Spacer(Modifier.height(Spacing.xs))
+                Spacer(Modifier.height(sizing.gapSm / 2))
                 StatRow(
                     label = stringResource(R.string.preview_to_delete),
                     value = stringResource(R.string.preview_count_unit, diff.toDelete.size),
                     valueColor = if (diff.toDelete.isNotEmpty()) StateWarn else TextSecondary,
                 )
-                Spacer(Modifier.height(Spacing.xs))
+                Spacer(Modifier.height(sizing.gapSm / 2))
                 // 恒显示,避免 0 -> N 时布局跳动
                 StatRow(
                     label = stringResource(R.string.preview_skipped),
@@ -76,7 +78,7 @@ fun SyncPreviewScreen(
                 )
             }
 
-            Spacer(Modifier.height(Spacing.md))
+            Spacer(Modifier.height(sizing.gapMd))
             StorageCard(diff = diff, shortage = storageShort)
             Spacer(Modifier.weight(1f))
 
@@ -93,7 +95,7 @@ fun SyncPreviewScreen(
                 // 无变更或空间不足都不放行:与引擎的 StorageShortageException 前置一致
                 enabled = hasChanges && !storageShort,
             )
-            Spacer(Modifier.height(Spacing.sm))
+            Spacer(Modifier.height(sizing.gapSm))
             SecondaryButton(
                 text = stringResource(R.string.common_back),
                 onClick = onDiscard,
@@ -105,6 +107,7 @@ fun SyncPreviewScreen(
 /** 存储卡片:占用 / 可用 + 容量条 */
 @Composable
 private fun StorageCard(diff: SyncEngine.Diff, shortage: Boolean) {
+    val sizing = LocalWindowSizing.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -123,7 +126,7 @@ private fun StorageCard(diff: SyncEngine.Diff, shortage: Boolean) {
         )
 
         if (diff.availableBytes > 0) {
-            Spacer(Modifier.height(Spacing.sm))
+            Spacer(Modifier.height(sizing.gapSm))
             val ratio = (diff.estimatedBytes.toFloat() / diff.availableBytes)
                 .coerceIn(0f, 1f)
             Box(
@@ -144,7 +147,7 @@ private fun StorageCard(diff: SyncEngine.Diff, shortage: Boolean) {
         }
 
         if (shortage) {
-            Spacer(Modifier.height(Spacing.xs))
+            Spacer(Modifier.height(sizing.gapSm / 2))
             Text(
                 text = stringResource(R.string.preview_storage_short),
                 style = MaterialTheme.typography.bodySmall,

@@ -38,7 +38,7 @@ import io.github.adkimsm.neteasedownloader.ui.components.HDivider
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel1
@@ -66,6 +66,7 @@ fun SettingsScreen(
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     val versionName = rememberAppVersionName()
+    val sizing = LocalWindowSizing.current
 
     ScreenScaffold(
         title = stringResource(R.string.settings_title),
@@ -81,7 +82,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary,
             )
-            Spacer(Modifier.height(Spacing.sm))
+            Spacer(Modifier.height(sizing.gapSm))
 
             SettingsStore.LEVELS.forEach { level ->
                 QualityOption(
@@ -92,18 +93,18 @@ fun SettingsScreen(
                     showCheck = level == currentLevel && levelJustChanged,
                     onClick = { onLevelChange(level) },
                 )
-                Spacer(Modifier.height(Spacing.xs))
+                Spacer(Modifier.height(sizing.gapSm / 2))
             }
 
-            Spacer(Modifier.height(Spacing.md))
+            Spacer(Modifier.height(sizing.gapMd))
             HDivider()
-            Spacer(Modifier.height(Spacing.md))
+            Spacer(Modifier.height(sizing.gapMd))
 
             SecondaryButton(
                 text = stringResource(R.string.settings_diagnostics),
                 onClick = onDiagnostics,
             )
-            Spacer(Modifier.height(Spacing.sm))
+            Spacer(Modifier.height(sizing.gapSm))
             SecondaryButton(
                 text = stringResource(R.string.settings_logout),
                 onClick = { confirmLogout = true },
@@ -111,7 +112,7 @@ fun SettingsScreen(
                 danger = true,
             )
 
-            Spacer(Modifier.height(Spacing.md))
+            Spacer(Modifier.height(sizing.gapMd))
             Text(
                 text = stringResource(R.string.settings_version, versionName),
                 style = MaterialTheme.typography.bodySmall,
@@ -155,10 +156,11 @@ private fun QualityOption(
     showCheck: Boolean,
     onClick: () -> Unit,
 ) {
+    val sizing = LocalWindowSizing.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = Dimens.TouchTarget)
+            .heightIn(min = sizing.touchTarget)
             .clip(RoundedCornerShape(6.dp))
             .background(if (selected) SurfaceLevel1 else MaterialTheme.colorScheme.background)
             .clickable(enabled = !loading, role = Role.RadioButton, onClick = onClick),
@@ -168,7 +170,7 @@ private fun QualityOption(
         Box(
             modifier = Modifier
                 .width(3.dp)
-                .height(Dimens.TouchTarget)
+                .height(sizing.touchTarget)
                 .background(if (selected) BrandRed else MaterialTheme.colorScheme.background),
         )
         Spacer(Modifier.width(Spacing.sm))
@@ -196,7 +198,7 @@ private fun QualityOption(
             CircularProgressIndicator(
                 modifier = Modifier
                     .padding(end = Spacing.sm)
-                    .height(Dimens.IconSize),
+                    .height(sizing.iconSize),
                 strokeWidth = 2.dp,
                 color = BrandRed,
             )

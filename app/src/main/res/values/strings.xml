@@ -58,7 +58,9 @@
     <string name="progress_stop_message">停止后已下载的文件保留,可再次同步续传。</string>
     <string name="progress_stop_confirm">停止</string>
     <string name="progress_completed">同步完成</string>
-
+    <!-- 极窄屏:把总数并进百分比行,少占一行 -->
+    <string name="progress_percent_with_total">%1$d%% · %2$d/%3$d</string>
+    <string name="progress_eta_label">剩余 %1$s</string>
     <!-- ==================== 设置 ==================== -->
     <string name="settings_title">设置</string>
     <string name="settings_quality">音质</string>

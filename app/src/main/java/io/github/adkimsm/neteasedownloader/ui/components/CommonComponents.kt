@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,12 +46,15 @@ import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
+import io.github.adkimsm.neteasedownloader.ui.theme.WindowClass
+import io.github.adkimsm.neteasedownloader.ui.theme.WindowSizing
 
 /**
  * 跨屏复用组件。抽出这些是为了消除原先每屏各写一遍页面内边距与加载转圈的重复与不一致。
@@ -58,7 +62,7 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
 
 /**
  * 统一页头。标题 + 可选返回 + 可选右侧动作。
- * 返回键保证 [Dimens.TouchTarget] 可点区域。
+ * 返回键保证 [WindowSizing.touchTarget] 可点区域。
  */
 @Composable
 fun ScreenScaffold(
@@ -68,27 +72,30 @@ fun ScreenScaffold(
     action: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    // 页头尺寸随窗口档次收缩,小屏上不再固定占用 48dp 高度
+    val sizing = LocalWindowSizing.current
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(Dimens.ScreenPadding),
+            .padding(sizing.screenPadding),
     ) {
         if (title != null || onBack != null || action != null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = Dimens.TouchTarget),
+                    .heightIn(min = sizing.headerMinHeight),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (onBack != null) {
                     IconButton(
                         onClick = onBack,
-                        modifier = Modifier.size(Dimens.TouchTarget),
+                        modifier = Modifier.size(sizing.touchTarget),
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.common_back),
                             tint = TextPrimary,
+                            modifier = Modifier.size(sizing.iconSize),
                         )
                     }
                 }
@@ -108,7 +115,7 @@ fun ScreenScaffold(
                 }
                 if (action != null) {
                     Box(
-                        modifier = Modifier.heightIn(min = Dimens.TouchTarget),
+                        modifier = Modifier.heightIn(min = sizing.touchTarget),
                         contentAlignment = Alignment.Center,
                     ) { action() }
                 }
@@ -130,12 +137,14 @@ fun PrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
 ) {
+    val sizing = LocalWindowSizing.current
     Button(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = Dimens.PrimaryButton),
+            .heightIn(min = sizing.primaryButtonHeight),
         enabled = enabled && !loading,
+        contentPadding = PaddingValues(horizontal = sizing.gapMd, vertical = 0.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = BrandRed,
             contentColor = TextPrimary,
@@ -145,12 +154,17 @@ fun PrimaryButton(
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(Dimens.IconSize),
+                modifier = Modifier.size(sizing.iconSize),
                 strokeWidth = 2.dp,
                 color = TextPrimary,
             )
         } else {
-            Text(text = text, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -165,16 +179,18 @@ fun SecondaryButton(
     loading: Boolean = false,
     danger: Boolean = false,
 ) {
+    val sizing = LocalWindowSizing.current
     OutlinedButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = Dimens.TouchTarget),
+            .heightIn(min = sizing.secondaryButtonHeight),
         enabled = enabled && !loading,
+        contentPadding = PaddingValues(horizontal = sizing.gapMd, vertical = 0.dp),
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(Dimens.IconSize),
+                modifier = Modifier.size(sizing.iconSize),
                 strokeWidth = 2.dp,
                 color = if (danger) StateError else TextPrimary,
             )
@@ -183,6 +199,8 @@ fun SecondaryButton(
                 text = text,
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (danger) StateError else TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -276,11 +294,12 @@ fun StateBadge(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
+    val sizing = LocalWindowSizing.current
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
             .background(color.copy(alpha = 0.16f))
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            .padding(horizontal = sizing.gapSm, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -306,12 +325,13 @@ fun ErrorBanner(
     onRetry: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
 ) {
+    val sizing = LocalWindowSizing.current
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(6.dp))
             .background(StateError.copy(alpha = 0.14f))
-            .padding(Spacing.sm),
+            .padding(sizing.gapSm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -333,7 +353,7 @@ fun ErrorBanner(
         if (onDismiss != null) {
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.size(Dimens.TouchTarget),
+                modifier = Modifier.size(sizing.touchTarget),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Close,
@@ -360,10 +380,15 @@ fun PlaylistRow(
     modifier: Modifier = Modifier,
     toggleLoading: Boolean = false,
 ) {
+    val sizing = LocalWindowSizing.current
+    // 小屏上一行要同时放下勾选位、封面和两行文字:
+    // 勾选标记改画在封面右下角的小圆点上,省掉独立的 36dp 勾选槽位。
+    val showStandaloneCheckbox = sizing.windowClass != WindowClass.Compact
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = Dimens.TouchTarget)
+            .heightIn(min = sizing.touchTarget)
             .clip(RoundedCornerShape(6.dp))
             .clickable(enabled = !toggleLoading, role = Role.Checkbox) {
                 onCheckedChange(!checked)
@@ -371,44 +396,71 @@ fun PlaylistRow(
             .padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.size(Dimens.TouchTarget * 0.75f),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (toggleLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = BrandRed,
+        if (showStandaloneCheckbox) {
+            Box(
+                modifier = Modifier.size(sizing.touchTarget * 0.75f),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (toggleLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(sizing.iconSize * 0.9f),
+                        strokeWidth = 2.dp,
+                        color = BrandRed,
+                    )
+                } else {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = { onCheckedChange(it) },
+                        enabled = !toggleLoading,
+                        modifier = Modifier.size(sizing.iconSize),
+                    )
+                }
+            }
+        } else if (toggleLoading) {
+            // 极窄窗口:角标位置改为小转圈,保留写入中的反馈
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(end = Spacing.xs)
+                    .size(sizing.iconSize * 0.9f),
+                strokeWidth = 2.dp,
+                color = BrandRed,
+            )
+        }
+
+        // 封面 + 选中角标(仅极窄窗口);选中态同时用文字颜色区分,不单靠颜色或角标
+        Box {
+            if (playlist.cover != null) {
+                AsyncImage(
+                    model = playlist.cover,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(sizing.thumbSize)
+                        .clip(CircleShape),
                 )
             } else {
-                Checkbox(
-                    checked = checked,
-                    onCheckedChange = { onCheckedChange(it) },
-                    enabled = !toggleLoading,
-                )
+                SkeletonThumb(size = sizing.thumbSize)
+            }
+            if (!showStandaloneCheckbox && checked) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(sizing.iconSize * 0.75f)
+                        .clip(CircleShape)
+                        .background(BrandRed),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CheckMark(color = TextPrimary, size = sizing.iconSize * 0.55f)
+                }
             }
         }
 
-        if (playlist.cover != null) {
-            AsyncImage(
-                model = playlist.cover,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(Dimens.ThumbSize)
-                    .clip(CircleShape),
-            )
-        } else {
-            SkeletonThumb(size = Dimens.ThumbSize)
-        }
-
-        Spacer(Modifier.width(Spacing.sm))
+        Spacer(Modifier.width(sizing.gapSm))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = playlist.name,
                 style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
+                color = if (checked) TextPrimary else TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -416,6 +468,8 @@ fun PlaylistRow(
                 text = stringResource(R.string.playlist_track_count, playlist.trackCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -434,12 +488,13 @@ fun HDivider(modifier: Modifier = Modifier, color: Color = io.github.adkimsm.net
 
 /** 选中勾:设置页/音质项共用 */
 @Composable
-fun CheckMark(color: Color, size: Dp = Dimens.IconSize) {
+fun CheckMark(color: Color, size: Dp? = null) {
+    val sizing = LocalWindowSizing.current
     Icon(
         imageVector = Icons.Filled.Check,
         contentDescription = null,
         tint = color,
-        modifier = Modifier.size(size),
+        modifier = Modifier.size(size ?: sizing.iconSize),
     )
 }
 
