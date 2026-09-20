@@ -1,4 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">网易云音乐同步</string>
+
+    <!-- ==================== 通用 ==================== -->
+    <string name="common_back">返回</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_confirm">确定</string>
+    <string name="common_retry">重试</string>
+    <string name="common_close">关闭</string>
+    <string name="common_clear">清空</string>
+
+    <!-- ==================== 登录 ==================== -->
+    <string name="login_generating_qr">正在生成二维码…</string>
+    <string name="login_qr_title">网易云App扫码登录</string>
+    <string name="login_qr_content_desc">网易云登录二维码</string>
+    <string name="login_waiting_scan">请用网易云App扫码</string>
+    <string name="login_scanned">已扫码,请在手机上确认</string>
+    <string name="login_expired">二维码已过期</string>
+    <string name="login_refresh_qr">刷新二维码</string>
+    <string name="login_success">登录成功</string>
+
+    <!-- ==================== 歌单列表 ==================== -->
+    <string name="playlist_title">我的歌单</string>
+    <string name="playlist_settings">设置</string>
+    <string name="playlist_empty_title">还没有歌单</string>
+    <string name="playlist_empty_hint">先点下方「立即同步」拉取</string>
+    <string name="playlist_loading">正在拉取歌单…</string>
+    <string name="playlist_track_count">%1$d 首</string>
+    <string name="playlist_selected_count">已选 %1$d 个歌单</string>
+    <string name="playlist_selected_none">尚未勾选任何歌单</string>
+    <string name="playlist_sync_now">立即同步</string>
+    <string name="playlist_syncing">正在同步…</string>
+
+    <!-- ==================== 同步预览 ==================== -->
+    <string name="preview_title">同步预览</string>
+    <string name="preview_to_download">待下载</string>
+    <string name="preview_to_delete">待删除</string>
+    <string name="preview_skipped">跳过(无版权/VIP)</string>
+    <string name="preview_count_unit">%1$d 首</string>
+    <string name="preview_storage">预计占用 %1$s / 可用 %2$s</string>
+    <string name="preview_storage_short">存储空间不足,请先清理或降低音质档位</string>
+    <string name="preview_confirm">确认同步</string>
+    <string name="preview_confirm_with_delete">确认同步(含删除 %1$d 首)</string>
+    <string name="preview_no_changes">无变更</string>
+    <string name="preview_calculating">正在计算差量…</string>
+
+    <!-- ==================== 同步进度 ==================== -->
+    <string name="progress_title">正在同步</string>
+    <string name="progress_stage_refreshing">正在拉取歌单</string>
+    <string name="progress_stage_downloading">正在下载</string>
+    <string name="progress_stage_deleting">正在清理</string>
+    <string name="progress_done_of_total">%1$d / %2$d</string>
+    <string name="progress_stop">停止</string>
+    <string name="progress_stopping">正在停止…</string>
+    <string name="progress_eta">%1$s</string>
+    <string name="progress_stop_title">停止同步?</string>
+    <string name="progress_stop_message">停止后已下载的文件保留,可再次同步续传。</string>
+    <string name="progress_stop_confirm">停止</string>
+    <string name="progress_completed">同步完成</string>
+
+    <!-- ==================== 设置 ==================== -->
+    <string name="settings_title">设置</string>
+    <string name="settings_quality">音质</string>
+    <string name="settings_quality_standard">标准</string>
+    <string name="settings_quality_standard_desc">128 kbps</string>
+    <string name="settings_quality_higher">较高</string>
+    <string name="settings_quality_higher_desc">192 kbps</string>
+    <string name="settings_quality_exhigh">极高</string>
+    <string name="settings_quality_exhigh_desc">320 kbps</string>
+    <string name="settings_quality_lossless">无损</string>
+    <string name="settings_quality_lossless_desc">FLAC,文件较大,注意存储</string>
+    <string name="settings_logout">退出登录</string>
+    <string name="settings_logout_title">退出登录?</string>
+    <string name="settings_logout_message">退出后需要重新扫码登录。</string>
+    <string name="settings_diagnostics">诊断日志</string>
+    <string name="settings_version">版本 %1$s</string>
+    <string name="settings_synced_playlists">已勾选 %1$d / %2$d 个歌单</string>
+
+    <!-- ==================== 兜底错误 ==================== -->
+    <!-- 仅在拿不到引擎/系统异常信息时使用 -->
+    <string name="error_refresh_failed">拉取歌单失败</string>
+    <string name="error_operation_failed">操作失败</string>
+    <string name="error_logout_failed">退出登录失败</string>
+
+    <!-- ==================== 诊断 ==================== -->
+    <string name="diagnostics_title">诊断日志</string>
+    <string name="diagnostics_copy_all">复制全部</string>
+    <string name="diagnostics_empty">暂无日志</string>
 </resources>
