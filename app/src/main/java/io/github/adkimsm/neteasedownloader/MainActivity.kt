@@ -81,8 +81,12 @@ private fun AppNavigation() {
         MainViewModel.Screen.PLAYLISTS -> {
             val playlists by mainViewModel.playlists.collectAsStateWithLifecycle()
             val progress by mainViewModel.progress.collectAsState()
+            val loading by mainViewModel.playlistsLoading.collectAsStateWithLifecycle()
+            val pendingToggles by mainViewModel.pendingToggleIds.collectAsStateWithLifecycle()
+            val errorMessage by mainViewModel.errorMessage.collectAsStateWithLifecycle()
             PlaylistScreen(
                 playlists = playlists,
+                // FAILED 不在这里显示为"同步中":失败走下面的错误条
                 syncing = progress.stage in setOf(
                     io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.REFRESHING,
                     io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.DOWNLOADING,
@@ -91,6 +95,10 @@ private fun AppNavigation() {
                 onToggle = mainViewModel::togglePlaylist,
                 onSyncClick = mainViewModel::startSync,
                 onSettingsClick = mainViewModel::openSettings,
+                loading = loading,
+                pendingToggleIds = pendingToggles,
+                errorMessage = errorMessage,
+                onDismissError = mainViewModel::clearError,
             )
         }
 
@@ -111,12 +119,19 @@ private fun AppNavigation() {
 
         MainViewModel.Screen.SETTINGS -> {
             val level by mainViewModel.level.collectAsState()
+            val actionInFlight by mainViewModel.actionInFlight.collectAsStateWithLifecycle()
+            val levelChanged by mainViewModel.levelJustChanged.collectAsStateWithLifecycle()
+            val settingsPlaylists by mainViewModel.playlists.collectAsStateWithLifecycle()
             SettingsScreen(
                 currentLevel = level,
                 onLevelChange = mainViewModel::setLevel,
                 onBack = mainViewModel::closeSettings,
                 onLogout = mainViewModel::logout,
                 onDiagnostics = mainViewModel::openDiagnostics,
+                loggingOut = actionInFlight == MainViewModel.ACTION_LOGOUT,
+                levelJustChanged = levelChanged,
+                playlistCount = settingsPlaylists.size,
+                enabledPlaylistCount = settingsPlaylists.count { it.enabled },
             )
         }
 
