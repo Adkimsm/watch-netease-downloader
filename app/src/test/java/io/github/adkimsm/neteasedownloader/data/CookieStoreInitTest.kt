@@ -8,7 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -123,7 +125,13 @@ class CookieStoreInitTest {
                 it[csrfKey] = "EXTERNAL_CSRF"
             }
             val external = CookieStore(ds, scope)
-            external.musicUState.first { it.isNotEmpty() }
+            // 等待断言真正依赖的状态:musicUState 与 init{} 里的常驻收集器是
+            // dataStore.data 上两个独立收集器,前者就绪并不代表后者已把 csrf 回填到内存字段。
+            withTimeout(5_000) {
+                while (!external.cookieHeader().contains("__csrf=EXTERNAL_CSRF")) {
+                    delay(10)
+                }
+            }
             assertTrue(
                 "常驻收集应把外部写入同步到 cookieHeader",
                 external.cookieHeader().contains("MUSIC_U=EXTERNAL_TOKEN"),
