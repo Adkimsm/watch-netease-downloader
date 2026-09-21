@@ -46,6 +46,7 @@ class SyncService : Service() {
                     SyncEngine.Stage.REFRESHING -> "拉取中:${p.message}"
                     SyncEngine.Stage.READY -> p.message
                     SyncEngine.Stage.DOWNLOADING -> "下载 ${p.done}/${p.total}:${p.message}"
+                    SyncEngine.Stage.NORMALIZING -> "规范文件名:${p.message}"
                     SyncEngine.Stage.DELETING -> "清理:${p.message}"
                     SyncEngine.Stage.DONE -> "同步完成"
                     SyncEngine.Stage.FAILED -> "失败:${p.message}"

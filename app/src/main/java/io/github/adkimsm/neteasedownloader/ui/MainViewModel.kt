@@ -78,7 +78,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // 原先留在歌单页只有底部一个小转圈,提示粒度过粗。
             p.stage == SyncEngine.Stage.REFRESHING ||
                 p.stage == SyncEngine.Stage.DOWNLOADING ||
-                p.stage == SyncEngine.Stage.DELETING -> Screen.SYNCING
+                p.stage == SyncEngine.Stage.DELETING ||
+                p.stage == SyncEngine.Stage.NORMALIZING -> Screen.SYNCING
 
             p.stage == SyncEngine.Stage.READY &&
                 (diff?.toDownload?.isNotEmpty() == true ||

@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.sync
 
 import android.content.Context
+import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
 import android.util.Log
@@ -45,7 +46,7 @@ class SyncEngine(
     private val playlistSongDao: PlaylistSongDao,
     private val mediaStoreWriter: MediaStoreWriter,
 ) {
-    enum class Stage { IDLE, REFRESHING, READY, DOWNLOADING, DELETING, DONE, FAILED }
+    enum class Stage { IDLE, REFRESHING, READY, NORMALIZING, DOWNLOADING, DELETING, DONE, FAILED }
 
     data class Progress(
         val stage: Stage,
@@ -126,6 +127,8 @@ class SyncEngine(
             "execute: 下载 ${diff.toDownload.size} 首, 删除 ${diff.toDelete.size} 首, " +
                 "跳过 ${diff.missingUrlCount} 首",
         )
+        // 先把旧版带「{songId}_」前缀的文件名规范化(幂等),再开始下载
+        normalizeStage(diff.toDelete.map { it.songId }.toSet())
         if (diff.toDownload.isNotEmpty()) {
             val downloadStartedAt = System.currentTimeMillis()
             _progress.value = Progress(
@@ -350,10 +353,10 @@ class SyncEngine(
             return
         }
 
-        val fileName = buildFileName(song, urlDto.type)
-        Diag.i(TAG_ENGINE, "开始下载 ${song.songId} ${fileName}, 期望 ${urlDto.size}B")
+        val displayName = FileNamePolicy.build(song.songId, song.name, song.artist, urlDto.type)
+        Diag.i(TAG_ENGINE, "开始下载 ${song.songId} ${displayName}, 期望 ${urlDto.size}B")
         val mediaUri = mediaStoreWriter.insertPending(
-            fileName = fileName,
+            displayName = displayName,
             title = song.name,
             artist = song.artist,
             album = song.album,
@@ -416,15 +419,39 @@ class SyncEngine(
         }
     }
 
-    private fun buildFileName(song: SongEntity, type: String?): String {
-        val ext = (type ?: "mp3").lowercase()
-        val safeArtist = sanitize(song.artist)
-        val safeName = sanitize(song.name)
-        return "${song.songId}_${safeArtist} - $safeName.$ext".take(MAX_FILE_NAME)
-    }
+    /**
+     * 旧版文件名带「{songId}_」前缀,此阶段把已下载歌曲的 MediaStore 文件名
+     * 规范为 FileNamePolicy 格式(「歌名 - 歌手.ext」)。已是新格式的跳过,幂等;
+     * 待删除的歌曲跳过(马上要删的没必要改名)。
+     */
+    private suspend fun normalizeStage(excludeIds: Set<Long>) {
+        val candidates = songDao.getAllIds().let { songDao.getByIds(it) }
+            .filter {
+                it.state == SongState.OK.name &&
+                    !it.localUri.isNullOrEmpty() &&
+                    it.songId !in excludeIds
+            }
+        if (candidates.isEmpty()) return
 
-    private fun sanitize(text: String): String =
-        text.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").take(60)
+        _progress.value = Progress(Stage.NORMALIZING, "规范文件名…")
+        val uriToSong = candidates.associateBy { it.localUri!! }
+        val currentNames = mediaStoreWriter.displayNameByUris(uriToSong.keys)
+        var renamed = 0
+        currentNames.forEach { (uriString, current) ->
+            ensureActive()
+            val song = uriToSong[uriString] ?: return@forEach
+            val ext = current.substringAfterLast('.', "").ifEmpty { song.type }
+            val target = FileNamePolicy.build(song.songId, song.name, song.artist, ext)
+            if (current != target) {
+                if (mediaStoreWriter.rename(Uri.parse(uriString), target)) {
+                    renamed++
+                } else {
+                    Diag.w(TAG_ENGINE, "重命名失败 ${song.songId}: $current → $target")
+                }
+            }
+        }
+        Diag.i(TAG_ENGINE, "文件名规范化:重命名 $renamed/${currentNames.size} 项")
+    }
 
     private fun mimeFor(type: String?): String = when (type?.lowercase()) {
         "flac" -> "audio/flac"
@@ -452,7 +479,6 @@ class SyncEngine(
         private const val MAX_ATTEMPTS = 3
         private const val RETRY_BACKOFF_MS = 1000L
         private const val PROGRESS_EMIT_STEP = 200 * KB
-        private const val MAX_FILE_NAME = 160
         private const val SPACE_MARGIN = 0.95 // 可用空间需覆盖 95% 的预估占用才放行
     }
 }

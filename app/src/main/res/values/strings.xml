@@ -50,6 +50,7 @@
     <string name="progress_stage_refreshing">正在拉取歌单</string>
     <string name="progress_stage_downloading">正在下载</string>
     <string name="progress_stage_deleting">正在清理</string>
+    <string name="progress_stage_normalizing">正在规范文件名</string>
     <string name="progress_done_of_total">%1$d / %2$d</string>
     <string name="progress_stop">停止</string>
     <string name="progress_stopping">正在停止…</string>

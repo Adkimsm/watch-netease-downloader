@@ -26,7 +26,7 @@ class MediaStoreWriter(private val context: Context) {
      * 预占位插入一条待下载记录,返回其 Uri;下载成功后调 [markDone],失败调 [delete]。
      */
     fun insertPending(
-        fileName: String,
+        displayName: String,
         title: String,
         artist: String,
         album: String?,
@@ -34,7 +34,7 @@ class MediaStoreWriter(private val context: Context) {
         mimeType: String,
     ): Uri? {
         val values = ContentValues().apply {
-            put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+            put(MediaStore.Audio.Media.DISPLAY_NAME, displayName)
             put(MediaStore.Audio.Media.TITLE, title)
             put(MediaStore.Audio.Media.ARTIST, artist)
             album?.let { put(MediaStore.Audio.Media.ALBUM, it) }
@@ -57,6 +57,38 @@ class MediaStoreWriter(private val context: Context) {
     fun delete(uri: Uri) {
         resolver.delete(uri, null, null)
     }
+
+    /** 批量查询指定 uri 的 DISPLAY_NAME,返回 uriString → 文件名 */
+    fun displayNameByUris(uriStrings: Set<String>): Map<String, String> {
+        if (uriStrings.isEmpty()) return emptyMap()
+        val out = HashMap<String, String>()
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DISPLAY_NAME,
+        )
+        runCatching {
+            resolver.query(collection, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val uriString = Uri.withAppendedPath(
+                        collection,
+                        cursor.getLong(0).toString(),
+                    ).toString()
+                    if (uriString in uriStrings) {
+                        cursor.getString(1)?.let { out[uriString] = it }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    /** 重命名 MediaStore 条目(IS_PENDING=0 也允许);返回是否成功 */
+    fun rename(uri: Uri, displayName: String): Boolean = runCatching {
+        val values = ContentValues().apply {
+            put(MediaStore.Audio.Media.DISPLAY_NAME, displayName)
+        }
+        resolver.update(uri, values, null, null) > 0
+    }.getOrDefault(false)
 
     /**
      * 删除本应用在 MediaStore 中的孤儿记录:

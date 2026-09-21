@@ -195,8 +195,12 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   极窄屏把总数并入百分比行并降一档字号。
   同步覆盖登录(二维码按档位收窄)、预览、设置页;补 11 个档位边界与单调性单测。
   验证:`compileDebugKotlin` / `testDebugUnitTest`(40→51 个测试全过)/ `assembleDebug` 均通过。
+- [x] **Phase 4.7**:下载文件名规范化——新增 sync/FileNamePolicy.kt(纯函数 + 14 项单测),
+  文件名由「{songId}_{歌手} - {歌名}」改为「歌名 - 歌手.ext」:多歌手分隔符「/」归一为「、」、
+  非法字符与控制符替换、首尾空白/点清理、超长截断但保住扩展名(旧实现对整串 take 会把扩展名截掉);
+  execute() 开头新增 NORMALIZING 阶段,批量把已下载的旧文件重命名成新格式(幂等,待删歌曲跳过);
+  MediaStoreWriter 加 displayNameByUris/rename,UI/通知/路由同步新阶段。
 - [ ] **Phase 5**:手表装机,按 §10 测试清单逐项实测并修问题
-
 ## 14. 实施纪要(避坑)
 
 - Kotlin 固定 2.3.20;不可降到 2.3.12(该版本的 org.jetbrains.kotlin.android
@@ -235,7 +239,9 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   **装机后先用 `adb-docker shell wm size; wm density` 实测再核对档位**,
   并注意 PLAN §0 记的「372×194」缺 density、且 194 对真实手表的高度明显偏小,疑似笔误。
   阈值 299/300/359/360 的边界已用单测钉住,改阈值前先看 `WindowSizingTest`。
+- **文件名截断不能 take 整个串**:旧 buildFileName 对完整文件名 take(160),超长歌名会把
+  扩展名一起截掉(如 .flac 变 .fla)。新策略先按总长算主体上限、截完再去掉残尾的「 -」「.」;
+  旧文件由 NORMALIZING 阶段在下次同步时幂等重命名(用户要求:同步时把旧文件一起改名)。
 
 ---
-
 *本计划随推进持续更新;行为变更以本文件为准。*
