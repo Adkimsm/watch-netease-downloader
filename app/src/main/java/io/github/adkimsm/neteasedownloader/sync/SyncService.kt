@@ -78,7 +78,9 @@ class SyncService : Service() {
         if (refreshJob?.isActive == true) return
         refreshJob = scope.launch {
             try {
-                engine.lastDiff = engine.refreshAndDiff()
+                // 差量由引擎自己发布(lastDiff),这里不要再赋值:否则「发 READY」
+                // 与「赋值差量」之间的窗口会让 UI 读到 null,预览页永不出现。
+                engine.refreshAndDiff()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 Diag.i("SyncService", "刷新被取消")
                 throw e
@@ -93,7 +95,7 @@ class SyncService : Service() {
         if (executeJob?.isActive == true) return
         executeJob = scope.launch {
             try {
-                engine.lastDiff?.let { engine.execute(it) }
+                engine.lastDiff.value?.let { engine.execute(it) }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 Diag.i("SyncService", "执行被取消")
                 throw e

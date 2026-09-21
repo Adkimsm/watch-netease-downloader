@@ -267,6 +267,18 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   最后才截断回写;失败时原文件完好,交给下次同步重试。
 - **字节级代码的测试要拿变异验一遍**:刻意注入「v2.4 帧长用大端」等 3 处缺陷,确认真的打挂 7 个用例;
   否则很容易写出永远为真的断言,看着绿实际什么都没验。
+- **「同步完成后不弹下载预览,点一下设置再返回就出现」是真缺陷,根因在 Flow 的接线**
+  (Phase 4.5 后修复):`computeDiff()` 先发 `Stage.READY`,而差量是 `refreshAndDiff()`
+  返回后才由服务赋值的 —— 两者不在同一个事件里。旧实现把 `lastDiff` 当普通 `@Volatile var`,
+  在 `combine(loggedIn, progress, settingsOpen, diagnosticsOpen)` 的 transform 里临时读一次快照:
+  READY 那一刻读到 null → 路由到歌单页,而且**之后再无任何事件触发重算**,就永久停在歌单页;
+  用户点开设置 / 返回只是改了 `settingsOpen`,顺带把路由重算了一次,于是预览又“神奇地”出现。
+  修法:差量改成 `StateFlow` 并作为 `combine` 的**输入之一**(`routeUiState`),
+  迟到的差量自己会再驱动一次路由;同时页面与差量合并为一个 `UiState` 同源产出,
+  预览页不会在差量未就绪时先渲染。教训:凡是 UI 依赖的状态,**只要它是普通 `var`/快照、
+  又处在“先发事件、后写值”的顺序里,就一定会出现这一类竞态**;把它做成 Flow 输入,
+  而不是在 combine 里临时读。路由已抽成纯函数 `routeScreen`/`routeUiState`,
+  `ScreenRoutingTest` 用 4 个用例钉住时序(拿掉 combine 里的差量输入会实打挂 2 个用例)。
 
 ---
 *本计划随推进持续更新;行为变更以本文件为准。*

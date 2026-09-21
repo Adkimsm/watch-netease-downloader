@@ -80,8 +80,18 @@ class SyncEngine(
     private val _progress = MutableStateFlow(Progress(Stage.IDLE, ""))
     val progress = _progress.asStateFlow()
 
-    /** 最近一次差量结果,供 UI 预览确认 */
-    @Volatile var lastDiff: Diff? = null
+    private val _lastDiff = MutableStateFlow<Diff?>(null)
+
+    /**
+     * 最近一次差量结果,供 UI 预览确认。
+     *
+     * 必须是可观察的 StateFlow:引擎先发 READY(见 [computeDiff]),差量则是在
+     * [refreshAndDiff] 返回之后才赋值的。UI 若只在 READY 那一刻读一次快照,
+     * 就有一整个窗口读到 null 而停在歌单页 —— 且之后没有任何事件再触发重算,
+     * 表现为「同步完成后不弹预览,得点一下设置(改动别的 UI 状态)再返回才出现」。
+     * 改成 StateFlow 后,迟到的差量本身就会再驱动一次页面对齐。
+     */
+    val lastDiff = _lastDiff.asStateFlow()
 
     private val urlCache = HashMap<Long, SongUrlDto>()
 
@@ -110,7 +120,7 @@ class SyncEngine(
         if (enabled.isEmpty()) {
             _progress.value = Progress(Stage.READY, "没有勾选的歌单")
             Diag.i(TAG_ENGINE, "没有勾选的歌单,diff 为空")
-            return Diff(emptyList(), emptyList(), 0, 0L, availableBytes())
+            return publishDiff(Diff(emptyList(), emptyList(), 0, 0L, availableBytes()))
         }
 
         songDao.resetStaleDownloading()
@@ -125,7 +135,7 @@ class SyncEngine(
             refreshPlaylistTracks(playlist)
         }
 
-        return computeDiff()
+        return publishDiff(computeDiff())
     }
 
     /** 执行下载与删除 */
@@ -222,10 +232,24 @@ class SyncEngine(
         _progress.value = Progress(Stage.FAILED, message)
     }
 
+    /** 预览页返回/开始新一轮同步时调用:丢弃上一轮差量 */
+    fun clearDiff() {
+        _lastDiff.value = null
+    }
+
     /** 预览页返回时调用,回到空闲态 */
     fun clearPreview() {
-        lastDiff = null
+        clearDiff()
         _progress.value = Progress(Stage.IDLE, "")
+    }
+
+    /**
+     * 发布差量,保证「算出来的差量」与「UI 观察到的差量」不会脱节 ——
+     * 调用方(服务)不再需要自己赋值,也就不会忘。
+     */
+    private fun publishDiff(diff: Diff): Diff {
+        _lastDiff.value = diff
+        return diff
     }
 
     private suspend fun refreshPlaylistTable(remote: List<PlaylistDto>) {

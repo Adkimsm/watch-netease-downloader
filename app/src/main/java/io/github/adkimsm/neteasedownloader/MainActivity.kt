@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
 private fun AppNavigation() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val mainViewModel: MainViewModel = viewModel()
-    val screen by mainViewModel.screen.collectAsStateWithLifecycle()
+    val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
 
     // Android 13+ 需要通知权限才能显示同步通知
     val notificationPermission = rememberLauncherForActivityResult(
@@ -68,7 +68,7 @@ private fun AppNavigation() {
         }
     }
 
-    when (screen) {
+    when (uiState.screen) {
         MainViewModel.Screen.LOGIN -> {
             val loginViewModel: LoginViewModel = viewModel()
             val state by loginViewModel.stateFlow.collectAsStateWithLifecycle()
@@ -87,13 +87,7 @@ private fun AppNavigation() {
             PlaylistScreen(
                 playlists = playlists,
                 // FAILED 不在这里显示为"同步中":失败走下面的错误条
-                syncing = progress.stage in setOf(
-                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.REFRESHING,
-                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.DOWNLOADING,
-                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.DELETING,
-                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.TAGGING,
-                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.NORMALIZING,
-                ),
+                syncing = progress.stage in MainViewModel.ACTIVE_STAGES,
                 onToggle = mainViewModel::togglePlaylist,
                 onSyncClick = mainViewModel::startSync,
                 onSettingsClick = mainViewModel::openSettings,
@@ -105,7 +99,8 @@ private fun AppNavigation() {
         }
 
         MainViewModel.Screen.PREVIEW -> {
-            mainViewModel.lastDiff?.let { diff ->
+            // 差量与 screen 同源产出:进到这一分支就一定有 diff
+            uiState.diff?.let { diff ->
                 SyncPreviewScreen(
                     diff = diff,
                     onConfirm = mainViewModel::confirmSync,

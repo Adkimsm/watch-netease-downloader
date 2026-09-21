@@ -11,8 +11,8 @@ import io.github.adkimsm.neteasedownloader.sync.SyncEngine
 import io.github.adkimsm.neteasedownloader.sync.SyncService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -58,7 +58,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _levelJustChanged = MutableStateFlow(false)
     val levelJustChanged = _levelJustChanged.asStateFlow()
 
-    val lastDiff: SyncEngine.Diff? get() = appRef.syncEngine.lastDiff
+    /**
+     * 一次路由结果:页面 + 该页面要用的差量。
+     *
+     * 两者必须同源产出 —— 否则预览页可能在差量还没读到时就先渲染出来(白屏)。
+     */
+    data class UiState(val screen: Screen, val diff: SyncEngine.Diff?)
 
     enum class Screen { LOGIN, PLAYLISTS, PREVIEW, SYNCING, SETTINGS, DIAGNOSTICS }
 
@@ -66,29 +71,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         const val ACTION_LOGOUT = "logout"
         const val ACTION_LEVEL = "level"
         private const val LEVEL_FEEDBACK_MS = 900L
+
+        /**
+         * 「正在忙」的阶段:这些阶段进进度屏,歌单页的同步按钮也据此转圈。
+         * FAILED 刻意不在其中 —— 失败走歌单页顶部的错误条。
+         */
+        val ACTIVE_STAGES = setOf(
+            SyncEngine.Stage.REFRESHING,
+            SyncEngine.Stage.DOWNLOADING,
+            SyncEngine.Stage.DELETING,
+            SyncEngine.Stage.TAGGING,
+            SyncEngine.Stage.NORMALIZING,
+        )
     }
 
-    val screen = combine(loggedIn, progress, settingsOpen, diagnosticsOpen) { musicU, p, settings, diag ->
-        val diff = appRef.syncEngine.lastDiff
-        when {
-            musicU.isEmpty() -> Screen.LOGIN
-            diag -> Screen.DIAGNOSTICS
-            settings -> Screen.SETTINGS
-            // 拉取+差量阶段也进进度屏:大歌单(3742 首)可能持续数分钟,
-            // 原先留在歌单页只有底部一个小转圈,提示粒度过粗。
-            p.stage == SyncEngine.Stage.REFRESHING ||
-                p.stage == SyncEngine.Stage.DOWNLOADING ||
-                p.stage == SyncEngine.Stage.DELETING ||
-                p.stage == SyncEngine.Stage.TAGGING ||
-                p.stage == SyncEngine.Stage.NORMALIZING -> Screen.SYNCING
-
-            p.stage == SyncEngine.Stage.READY &&
-                (diff?.toDownload?.isNotEmpty() == true ||
-                    diff?.toDelete?.isNotEmpty() == true) -> Screen.PREVIEW
-
-            else -> Screen.PLAYLISTS
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, Screen.LOGIN)
+    /**
+     * 当前页面与页面要用的差量。
+     *
+     * 路由规则见 [routeUiState]/[routeScreen](纯函数,已单测):差量必须作为 combine
+     * 的输入,而不是在 transform 里临时读一次快照 —— 否则「同步完成后不弹下载预览,
+     * 得先点进设置再返回」的缺陷会复现。这里只负责把路由绑到 ViewModel 的生命周期上。
+     */
+    val uiState: StateFlow<UiState> = routeUiState(
+        loggedIn = loggedIn,
+        progress = progress,
+        settingsOpen = settingsOpen,
+        diagnosticsOpen = diagnosticsOpen,
+        lastDiff = appRef.syncEngine.lastDiff,
+    ).stateIn(viewModelScope, SharingStarted.Eagerly, UiState(Screen.LOGIN, null))
 
     init {
         // 首次登录成功后自动拉取歌单列表(只拉列表,不跑 diff),避免歌单页空转
@@ -136,7 +146,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startSync() {
-        appRef.syncEngine.lastDiff = null
+        appRef.syncEngine.clearDiff()
         SyncService.refresh(appRef)
     }
 
