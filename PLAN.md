@@ -48,7 +48,7 @@ app/src/main/java/io/github/adkimsm/neteasedownloader/
 ├── crypto/      Weapi.kt, Eapi.kt         # weapi(AES-CBC + RSA)、eapi(AES-ECB)
 ├── net/         NcmApi.kt, Dtos.kt        # 端点定义 + 响应模型
 ├── data/        AppDatabase, entities, dao, MediaStoreWriter
-├── sync/        SyncEngine, Diff, Downloader
+├── sync/        SyncEngine, FileNamePolicy, AudioTagWriter
 ├── ui/          4 屏 + ViewModel + 主题
 └── service/     SyncForegroundService
 ```
@@ -200,6 +200,14 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   非法字符与控制符替换、首尾空白/点清理、超长截断但保住扩展名(旧实现对整串 take 会把扩展名截掉);
   execute() 开头新增 NORMALIZING 阶段,批量把已下载的旧文件重命名成新格式(幂等,待删歌曲跳过);
   MediaStoreWriter 加 displayNameByUris/rename,UI/通知/路由同步新阶段。
+- [x] **Phase 4.8**:下载/存量文件写入歌名与歌手标签——新增 `sync/AudioTagWriter.kt`(纯函数 + 26 项单测):
+  mp3 写 ID3v2 文本帧 `TIT2`/`TPE1`(v2.3 帧长大端原值、v2.4 syncsafe,重建时主版本跟着原标签走;
+  中文走 UTF-16 + BOM),flac 写 VORBIS_COMMENT 的 `TITLE=`/`ARTIST=`(块长大端、内部长度小端);
+  **只替换这两个字段**,封面 APIC/PICTURE、专辑、音轨号等其它标签与音频正文逐字节保留;
+  下载路径在 `markDone` 之前写标签(条目仍是 IS_PENDING,播放器读不到半成品),并按最终字节数落库;
+  `execute()` 新增 **TAGGING 阶段**幂等补齐存量文件(内容探测判定,已是目标值则零写盘,待删文件跳过);
+  `MediaStoreWriter` 加 `openRead`/`rewrite`(临时文件重写 + 双空间预检,失败绝不截断原文件);
+  m4a/aac/ogg 不处理。单测 67→93 全过,并用 3 处变异确认新用例不是空转。
 - [ ] **Phase 5**:手表装机,按 §10 测试清单逐项实测并修问题
 ## 14. 实施纪要(避坑)
 
@@ -242,6 +250,23 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
 - **文件名截断不能 take 整个串**:旧 buildFileName 对完整文件名 take(160),超长歌名会把
   扩展名一起截掉(如 .flac 变 .fla)。新策略先按总长算主体上限、截完再去掉残尾的「 -」「.」;
   旧文件由 NORMALIZING 阶段在下次同步时幂等重命名(用户要求:同步时把旧文件一起改名)。
+- **ID3 的版本不能随手统一**:重建标签时若把 v2.4 文件改写成 v2.3 头,而保留的帧仍是 v2.4 的
+  syncsafe 帧长编码,播放器就会把帧长读错、整个标签解析失败。`AudioTagWriter` 因此让主版本跟着原标签走
+  (无标签才新建 v2.3)。帧长编码在 v2.3 是大端原值、v2.4 是 28-bit syncsafe —— 单测要用 >127 字节的
+  载荷才能区分这两种编码,小于 128 时两者恰好相同,根本测不出来。
+- **中文标签必须 UTF-16 + BOM**(编码字节 0x01),ISO-8859-1 会把中文写成乱码;显式写小端 BOM
+  `FF FE`,比 Java `Charsets.UTF_16` 默认的大端 BOM 更被老播放器接受。
+- **FLAC 块头长度是大端,VORBIS_COMMENT 内部长度是小端**,两处弄反都会读出天文数字的字段长度;
+  另外 STREAMINFO 必须仍是第一块,last-metadata-block 标志要落在最后一块上。
+- **补标签不能把整个标签重建一遍**:只摘掉 `TIT2`/`TPE1`(或 `TITLE=`/`ARTIST=`),
+  否则会把封面(APIC/PICTURE)、专辑、音轨号一起丢掉,播放器里封面直接消失。
+  带 unsynchronisation / extended header / 压缩帧标志或 v2.2 标签的文件一律整体放弃(不动文件),
+  宁可漏填也不写坏。
+- **就地重写必须走临时文件 + 空间预检**:`openOutputStream(uri,"wt")` 一调用原文件就被截断,
+  此时若目标卷没空间,写一半失败就只剩个损坏文件。先写 cacheDir 临时文件、再查目标卷可用空间、
+  最后才截断回写;失败时原文件完好,交给下次同步重试。
+- **字节级代码的测试要拿变异验一遍**:刻意注入「v2.4 帧长用大端」等 3 处缺陷,确认真的打挂 7 个用例;
+  否则很容易写出永远为真的断言,看着绿实际什么都没验。
 
 ---
 *本计划随推进持续更新;行为变更以本文件为准。*

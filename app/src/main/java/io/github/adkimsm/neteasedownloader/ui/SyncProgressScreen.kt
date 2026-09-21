@@ -63,6 +63,7 @@ fun SyncProgressScreen(progress: SyncEngine.Progress, onStop: () -> Unit) {
         if (progress.stage != SyncEngine.Stage.DOWNLOADING &&
             progress.stage != SyncEngine.Stage.DELETING &&
             progress.stage != SyncEngine.Stage.REFRESHING &&
+            progress.stage != SyncEngine.Stage.TAGGING &&
             progress.stage != SyncEngine.Stage.NORMALIZING
         ) {
             stopping = false
@@ -222,6 +223,7 @@ private fun stageTitle(stage: SyncEngine.Stage): String = when (stage) {
     SyncEngine.Stage.REFRESHING -> stringResource(R.string.progress_stage_refreshing)
     SyncEngine.Stage.DOWNLOADING -> stringResource(R.string.progress_stage_downloading)
     SyncEngine.Stage.DELETING -> stringResource(R.string.progress_stage_deleting)
+    SyncEngine.Stage.TAGGING -> stringResource(R.string.progress_stage_tagging)
     SyncEngine.Stage.NORMALIZING -> stringResource(R.string.progress_stage_normalizing)
     SyncEngine.Stage.DONE -> stringResource(R.string.progress_completed)
     else -> stringResource(R.string.progress_title)

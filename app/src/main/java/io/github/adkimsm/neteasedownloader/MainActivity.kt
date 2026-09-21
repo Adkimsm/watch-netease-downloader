@@ -91,6 +91,7 @@ private fun AppNavigation() {
                     io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.REFRESHING,
                     io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.DOWNLOADING,
                     io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.DELETING,
+                    io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.TAGGING,
                     io.github.adkimsm.neteasedownloader.sync.SyncEngine.Stage.NORMALIZING,
                 ),
                 onToggle = mainViewModel::togglePlaylist,

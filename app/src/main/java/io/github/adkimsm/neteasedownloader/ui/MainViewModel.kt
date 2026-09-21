@@ -79,6 +79,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             p.stage == SyncEngine.Stage.REFRESHING ||
                 p.stage == SyncEngine.Stage.DOWNLOADING ||
                 p.stage == SyncEngine.Stage.DELETING ||
+                p.stage == SyncEngine.Stage.TAGGING ||
                 p.stage == SyncEngine.Stage.NORMALIZING -> Screen.SYNCING
 
             p.stage == SyncEngine.Stage.READY &&

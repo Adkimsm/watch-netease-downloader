@@ -20,13 +20,21 @@ import io.github.adkimsm.neteasedownloader.net.Downloader
 import io.github.adkimsm.neteasedownloader.net.NcmApi
 import io.github.adkimsm.neteasedownloader.net.PlaylistDto
 import io.github.adkimsm.neteasedownloader.net.SongUrlDto
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.FileNotFoundException
 import java.util.concurrent.TimeUnit
+
+/** 单个文件补标签的结果 */
+private enum class TagStatus { WRITTEN, UP_TO_DATE, UNSUPPORTED, FAILED }
+
+/** [TagResult.bytes] 仅在 [TagStatus.WRITTEN] 时是新的落盘字节数,其余为 -1 */
+private data class TagResult(val status: TagStatus, val bytes: Long = -1L)
 
 class StorageShortageException(val estimated: Long, val available: Long) :
     RuntimeException("空间不足:需约 ${estimated / MB}MB,仅剩 ${available / MB}MB") {
@@ -46,7 +54,7 @@ class SyncEngine(
     private val playlistSongDao: PlaylistSongDao,
     private val mediaStoreWriter: MediaStoreWriter,
 ) {
-    enum class Stage { IDLE, REFRESHING, READY, NORMALIZING, DOWNLOADING, DELETING, DONE, FAILED }
+    enum class Stage { IDLE, REFRESHING, READY, NORMALIZING, DOWNLOADING, TAGGING, DELETING, DONE, FAILED }
 
     data class Progress(
         val stage: Stage,
@@ -150,6 +158,9 @@ class SyncEngine(
                 downloadSong(song)
             }
         }
+
+        // 存量文件补标签(幂等);待删的不碰
+        tagStage(diff.toDelete.map { it.songId }.toSet())
 
         if (diff.toDelete.isNotEmpty()) {
             _progress.value = Progress(
@@ -389,12 +400,19 @@ class SyncEngine(
                     ) {
                         throw IllegalStateException("md5 校验失败")
                     }
-                    mediaStoreWriter.markDone(mediaUri, result.bytes)
+                    // 标签必须在 markDone 之前写:此时条目还是 IS_PENDING,外部播放器读不到半成品
+                    val tagResult = tagOne(mediaUri, displayName.substringAfterLast('.', ""), song.name, song.artist)
+                    val finalSize = if (tagResult.status == TagStatus.WRITTEN && tagResult.bytes > 0) {
+                        tagResult.bytes
+                    } else {
+                        result.bytes
+                    }
+                    mediaStoreWriter.markDone(mediaUri, finalSize)
                     songDao.updateLocalResult(
                         songId = song.songId,
                         state = SongState.OK,
                         localUri = mediaUri.toString(),
-                        size = result.bytes,
+                        size = finalSize,
                         md5 = result.md5 ?: urlDto.md5,
                         br = urlDto.br,
                         type = urlDto.type,
@@ -451,6 +469,73 @@ class SyncEngine(
             }
         }
         Diag.i(TAG_ENGINE, "文件名规范化:重命名 $renamed/${currentNames.size} 项")
+    }
+
+    /**
+     * 给单个已下载文件补写歌名/歌手标签。幂等:已是目标值就只读头部、不写盘。
+     * 需要写盘时经临时文件重写,失败不会破坏原文件。
+     */
+    private suspend fun tagOne(uri: Uri, ext: String, name: String, artist: String): TagResult =
+        withContext(Dispatchers.IO) {
+            if (!AudioTagWriter.supports(ext)) return@withContext TagResult(TagStatus.UNSUPPORTED)
+            // 探测失败 = 容器无法安全解析:不动文件,也不反复重试
+            val existing = mediaStoreWriter.openRead(uri)?.use { AudioTagWriter.probe(ext, it) }
+                ?: return@withContext TagResult(TagStatus.FAILED)
+            if (existing.title == name && existing.artist == artist) {
+                return@withContext TagResult(TagStatus.UP_TO_DATE)
+            }
+            val bytes = runCatching {
+                mediaStoreWriter.rewrite(uri) { source, sink ->
+                    AudioTagWriter.retag(ext, name, artist, source, sink)
+                }
+            }.getOrElse { e ->
+                Diag.w(TAG_ENGINE, "标签写入失败 $uri:${e.message}")
+                return@withContext TagResult(TagStatus.FAILED)
+            }
+            if (bytes <= 0) TagResult(TagStatus.FAILED) else TagResult(TagStatus.WRITTEN, bytes)
+        }
+
+    /**
+     * 存量文件补标签阶段:幂等,已是目标值的不写盘。
+     * 只处理 mp3/flac;待删除的文件跳过(马上要删的没必要写)。
+     */
+    private suspend fun tagStage(excludeIds: Set<Long>) {
+        val candidates = songDao.getAllIds().let { songDao.getByIds(it) }
+            .filter {
+                it.state == SongState.OK.name &&
+                    !it.localUri.isNullOrEmpty() &&
+                    it.songId !in excludeIds
+            }
+        if (candidates.isEmpty()) return
+
+        _progress.value = Progress(Stage.TAGGING, "填充歌曲信息…", candidates.size, 0)
+        val uriToSong = candidates.associateBy { it.localUri!! }
+        val names = mediaStoreWriter.displayNameByUris(uriToSong.keys)
+        var written = 0
+        var upToDate = 0
+        var unsupported = 0
+        var failed = 0
+        var done = 0
+        names.forEach { (uriString, current) ->
+            ensureActive()
+            done++
+            val song = uriToSong[uriString] ?: return@forEach
+            _progress.value = _progress.value.copy(
+                message = "${song.artist} - ${song.name}",
+                done = done,
+            )
+            val ext = current.substringAfterLast('.', "").ifEmpty { song.type ?: "" }
+            when (tagOne(Uri.parse(uriString), ext, song.name, song.artist).status) {
+                TagStatus.WRITTEN -> written++
+                TagStatus.UP_TO_DATE -> upToDate++
+                TagStatus.UNSUPPORTED -> unsupported++
+                TagStatus.FAILED -> failed++
+            }
+        }
+        Diag.i(
+            TAG_ENGINE,
+            "标签填充:写入 $written,已是最新 $upToDate,跳过 $unsupported,失败 $failed / ${names.size}",
+        )
     }
 
     private fun mimeFor(type: String?): String = when (type?.lowercase()) {
