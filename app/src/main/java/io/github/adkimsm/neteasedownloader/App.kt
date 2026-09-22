@@ -10,7 +10,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import io.github.adkimsm.neteasedownloader.data.AppDatabase
 import io.github.adkimsm.neteasedownloader.data.CookieStore
+import io.github.adkimsm.neteasedownloader.data.LikedSongDao
 import io.github.adkimsm.neteasedownloader.data.MediaStoreWriter
+import io.github.adkimsm.neteasedownloader.data.PlaylistCache
 import io.github.adkimsm.neteasedownloader.data.PlaylistDao
 import io.github.adkimsm.neteasedownloader.data.PlaylistSongDao
 import io.github.adkimsm.neteasedownloader.data.SettingsStore
@@ -39,6 +41,11 @@ class App : Application() {
     val playlistDao: PlaylistDao by lazy { PlaylistDao(database) }
     val songDao: SongDao by lazy { SongDao(database) }
     val playlistSongDao: PlaylistSongDao by lazy { PlaylistSongDao(database) }
+    val likedSongDao: LikedSongDao by lazy { LikedSongDao(database) }
+    /** 远端歌单/曲目缓存:同步与浏览层共用 */
+    val playlistCache: PlaylistCache by lazy {
+        PlaylistCache(ncmApi, playlistDao, songDao, playlistSongDao)
+    }
     val mediaStoreWriter: MediaStoreWriter by lazy { MediaStoreWriter(this) }
     val settingsStore: SettingsStore by lazy { SettingsStore(this, appScope) }
     val syncEngine: SyncEngine by lazy {
@@ -51,6 +58,8 @@ class App : Application() {
             songDao = songDao,
             playlistSongDao = playlistSongDao,
             mediaStoreWriter = mediaStoreWriter,
+            // 正在播放的歌在同步删除时豁免(自愈:下一轮不再受保护)
+            playingSongId = { playbackRepository.state.value.songId },
         )
     }
 

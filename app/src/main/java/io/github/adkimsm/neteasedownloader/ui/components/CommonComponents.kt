@@ -50,6 +50,7 @@ import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel3
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -377,12 +378,13 @@ fun PlaylistRow(
     playlist: PlaylistEntity,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    onOpen: () -> Unit,
     modifier: Modifier = Modifier,
     toggleLoading: Boolean = false,
 ) {
     val sizing = LocalWindowSizing.current
     // 小屏上一行要同时放下勾选位、封面和两行文字:
-    // 勾选标记改画在封面右下角的小圆点上,省掉独立的 36dp 勾选槽位。
+    // 勾选标记改画在封面右下角的小圆点上,省掉独立的勾选槽位。
     val showStandaloneCheckbox = sizing.windowClass != WindowClass.Compact
 
     Row(
@@ -390,9 +392,9 @@ fun PlaylistRow(
             .fillMaxWidth()
             .heightIn(min = sizing.touchTarget)
             .clip(RoundedCornerShape(6.dp))
-            .clickable(enabled = !toggleLoading, role = Role.Checkbox) {
-                onCheckedChange(!checked)
-            }
+            // 点**行**进歌单详情;点**勾选框/角标**才切换是否纳入同步。
+            // 播放器里"进歌单听歌"是主操作,不该和"是否下载"共用同一个手势。
+            .clickable(enabled = !toggleLoading, onClick = onOpen)
             .padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -427,7 +429,7 @@ fun PlaylistRow(
             )
         }
 
-        // 封面 + 选中角标(仅极窄窗口);选中态同时用文字颜色区分,不单靠颜色或角标
+        // 封面 + 勾选角标(仅极窄窗口);选中态同时用文字颜色区分,不单靠颜色或角标
         Box {
             if (playlist.cover != null) {
                 AsyncImage(
@@ -441,16 +443,18 @@ fun PlaylistRow(
             } else {
                 SkeletonThumb(size = sizing.thumbSize)
             }
-            if (!showStandaloneCheckbox && checked) {
+            // 极窄档没有独立勾选槽位,角标本身就是勾选开关,自身可点
+            if (!showStandaloneCheckbox) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .size(sizing.iconSize * 0.75f)
+                        .size(sizing.touchTarget * 0.6f)
                         .clip(CircleShape)
-                        .background(BrandRed),
+                        .background(if (checked) BrandRed else SurfaceLevel3)
+                        .clickable(enabled = !toggleLoading) { onCheckedChange(!checked) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    CheckMark(color = TextPrimary, size = sizing.iconSize * 0.55f)
+                    if (checked) CheckMark(color = TextPrimary, size = sizing.iconSize * 0.5f)
                 }
             }
         }

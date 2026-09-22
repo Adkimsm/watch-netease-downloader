@@ -56,6 +56,8 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
 fun SettingsScreen(
     currentLevel: String,
     onLevelChange: (String) -> Unit,
+    currentStreamLevel: String,
+    onStreamLevelChange: (String) -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit,
     onDiagnostics: () -> Unit,
@@ -92,6 +94,28 @@ fun SettingsScreen(
                     loading = false,
                     showCheck = level == currentLevel && levelJustChanged,
                     onClick = { onLevelChange(level) },
+                )
+                Spacer(Modifier.height(sizing.gapSm / 2))
+            }
+
+            Spacer(Modifier.height(sizing.gapMd))
+            HDivider()
+            Spacer(Modifier.height(sizing.gapMd))
+
+            Text(
+                text = stringResource(R.string.settings_stream_quality),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+            )
+            Spacer(Modifier.height(sizing.gapSm))
+
+            SettingsStore.LEVELS.forEach { level ->
+                QualityOption(
+                    level = level,
+                    selected = level == currentStreamLevel,
+                    loading = false,
+                    showCheck = level == currentStreamLevel && levelJustChanged,
+                    onClick = { onStreamLevelChange(level) },
                 )
                 Spacer(Modifier.height(sizing.gapSm / 2))
             }

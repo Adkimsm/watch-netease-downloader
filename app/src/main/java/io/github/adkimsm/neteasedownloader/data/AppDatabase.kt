@@ -6,10 +6,13 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 /**
- * 三表本地索引库(手写 SQLite,避免 Room/KSP 在 Kotlin 2.3.20 工具链下的版本耦合):
- *  - playlist:已拉取的歌单
+ * 本地索引库(手写 SQLite,避免 Room/KSP 在 Kotlin 2.3.20 工具链下的版本耦合):
+ *  - playlist:已拉取的歌单(含 creatorId/specialType,决定能否远端编辑)
  *  - song:歌曲元数据 + 本地下载状态
  *  - playlist_song:歌单与歌曲的多对多关联(同步差量的基准)
+ *  - liked_song:红心歌曲(增删走 radio/like,与歌单曲目接口分开)
+ *
+ * 建表 SQL 抽成常量:onCreate 与 onUpgrade 共用同一份定义,避免两条路径漂移。
  */
 class AppDatabase(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
@@ -18,21 +21,65 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
     DB_VERSION,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE playlist (
+        db.execSQL(SQL_CREATE_PLAYLIST)
+        db.execSQL(SQL_CREATE_SONG)
+        db.execSQL(SQL_CREATE_PLAYLIST_SONG)
+        db.execSQL(SQL_CREATE_PLAYLIST_SONG_INDEX)
+        db.execSQL(SQL_CREATE_LIKED_SONG)
+        db.execSQL(SQL_CREATE_LIKED_SONG_INDEX)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) migrateToV2(db)
+    }
+
+    /**
+     * v1 → v2:新增红心表,并给 playlist 补 creatorId / specialType。
+     *
+     * 幂等:列已存在就不重复 ALTER(升级中断后重跑、或降级回装再升级都可能走到这里)。
+     */
+    private fun migrateToV2(db: SQLiteDatabase) {
+        db.execSQL(SQL_CREATE_LIKED_SONG)
+        db.execSQL(SQL_CREATE_LIKED_SONG_INDEX)
+        if (!db.hasColumn(TABLE_PLAYLIST, "creatorId")) {
+            db.execSQL("ALTER TABLE $TABLE_PLAYLIST ADD COLUMN creatorId INTEGER NOT NULL DEFAULT 0")
+        }
+        if (!db.hasColumn(TABLE_PLAYLIST, "specialType")) {
+            db.execSQL("ALTER TABLE $TABLE_PLAYLIST ADD COLUMN specialType INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
+        rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            if (nameIndex < 0) return@use false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == column) return@use true
+            }
+            false
+        }
+
+    companion object {
+        private const val DB_NAME = "watchmusic.db"
+        private const val DB_VERSION = 2
+
+        private const val TABLE_PLAYLIST = "playlist"
+
+        private val SQL_CREATE_PLAYLIST = """
+            CREATE TABLE IF NOT EXISTS playlist (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 cover TEXT,
                 trackCount INTEGER NOT NULL,
                 enabled INTEGER NOT NULL DEFAULT 0,
-                lastSyncAt INTEGER
+                lastSyncAt INTEGER,
+                creatorId INTEGER NOT NULL DEFAULT 0,
+                specialType INTEGER NOT NULL DEFAULT 0
             )
-            """.trimIndent(),
-        )
-        db.execSQL(
-            """
-            CREATE TABLE song (
+        """.trimIndent()
+
+        private val SQL_CREATE_SONG = """
+            CREATE TABLE IF NOT EXISTS song (
                 songId INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 artist TEXT NOT NULL,
@@ -47,28 +94,29 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 localUri TEXT,
                 updatedAt INTEGER NOT NULL
             )
-            """.trimIndent(),
-        )
-        db.execSQL(
-            """
-            CREATE TABLE playlist_song (
+        """.trimIndent()
+
+        private val SQL_CREATE_PLAYLIST_SONG = """
+            CREATE TABLE IF NOT EXISTS playlist_song (
                 playlistId INTEGER NOT NULL,
                 songId INTEGER NOT NULL,
                 sortIndex INTEGER NOT NULL,
                 PRIMARY KEY (playlistId, songId)
             )
-            """.trimIndent(),
-        )
-        db.execSQL("CREATE INDEX idx_playlist_song_song ON playlist_song(songId)")
-    }
+        """.trimIndent()
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 预留:后续版本迁移
-    }
+        private const val SQL_CREATE_PLAYLIST_SONG_INDEX =
+            "CREATE INDEX IF NOT EXISTS idx_playlist_song_song ON playlist_song(songId)"
 
-    companion object {
-        private const val DB_NAME = "watchmusic.db"
-        private const val DB_VERSION = 1
+        private val SQL_CREATE_LIKED_SONG = """
+            CREATE TABLE IF NOT EXISTS liked_song (
+                songId INTEGER PRIMARY KEY,
+                likedAt INTEGER NOT NULL
+            )
+        """.trimIndent()
+
+        private const val SQL_CREATE_LIKED_SONG_INDEX =
+            "CREATE INDEX IF NOT EXISTS idx_liked_song_at ON liked_song(likedAt)"
     }
 }
 

@@ -8,9 +8,8 @@ import android.util.Log
 import io.github.adkimsm.neteasedownloader.data.CookieStore
 import io.github.adkimsm.neteasedownloader.data.MediaStoreWriter
 import io.github.adkimsm.neteasedownloader.data.PlaylistDao
-import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
+import io.github.adkimsm.neteasedownloader.data.PlaylistCache
 import io.github.adkimsm.neteasedownloader.data.PlaylistSongDao
-import io.github.adkimsm.neteasedownloader.data.PlaylistSongEntity
 import io.github.adkimsm.neteasedownloader.data.SettingsStore
 import io.github.adkimsm.neteasedownloader.data.SongDao
 import io.github.adkimsm.neteasedownloader.data.SongEntity
@@ -18,7 +17,6 @@ import io.github.adkimsm.neteasedownloader.data.SongState
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.Downloader
 import io.github.adkimsm.neteasedownloader.net.NcmApi
-import io.github.adkimsm.neteasedownloader.net.PlaylistDto
 import io.github.adkimsm.neteasedownloader.net.SongUrlDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -53,7 +51,12 @@ class SyncEngine(
     private val songDao: SongDao,
     private val playlistSongDao: PlaylistSongDao,
     private val mediaStoreWriter: MediaStoreWriter,
+    /** 正在播放的歌曲:同步删除时豁免它 */
+    private val playingSongId: () -> Long? = { null },
 ) {
+    /** 远端↔本地歌单/曲目的缓存入口,与浏览层共用同一实现 */
+    private val cache = PlaylistCache(api, playlistDao, songDao, playlistSongDao)
+
     enum class Stage { IDLE, REFRESHING, READY, NORMALIZING, DOWNLOADING, TAGGING, DELETING, DONE, FAILED }
 
     data class Progress(
@@ -113,7 +116,7 @@ class SyncEngine(
 
         _progress.value = Progress(Stage.REFRESHING, "正在拉取歌单…")
         val remotePlaylists = api.fetchUserPlaylists(uid)
-        refreshPlaylistTable(remotePlaylists)
+        cache.mergePlaylistTable(remotePlaylists)
         Diag.i(TAG_ENGINE, "远端歌单 ${remotePlaylists.size} 个")
 
         val enabled = playlistDao.getEnabled()
@@ -132,7 +135,7 @@ class SyncEngine(
                 Stage.REFRESHING,
                 "正在拉取「${playlist.name}」(${index + 1}/${enabled.size})…",
             )
-            refreshPlaylistTracks(playlist)
+            cache.loadTracks(playlist.id)
         }
 
         return publishDiff(computeDiff())
@@ -177,11 +180,17 @@ class SyncEngine(
                 Stage.DELETING,
                 "正在清理 ${diff.toDelete.size} 首已移出歌单的文件…",
             )
+            // 正在播放的那一首已在算差量时豁免(见 planLocalDeletions):
+            // 正在听的歌被同步删掉是明确的体验缺陷,而且豁免是自愈的 —— 下一轮不再受保护。
             diff.toDelete.forEach { song ->
                 song.localUri?.let { mediaStoreWriter.deleteByUriString(it) }
             }
-            songDao.deleteByIds(diff.toDelete.map { it.songId })
+            // 由"删行"改为"清本地态":未勾选歌单里的歌仍要能浏览、能串流
+            songDao.clearLocal(diff.toDelete.map { it.songId })
         }
+
+        // 回收既没有歌单引用、也不是红心的 song 行(浏览缓存不会无限增长)
+        songDao.deleteUnreferenced()
 
         // 孤儿清理:MediaStore 里残留的 WatchMusic 条目,数据库已不跟踪
         val validUris = songDao.getAllIds()
@@ -208,7 +217,7 @@ class SyncEngine(
             val uid = resolveUid()
             if (uid == 0L) throw IllegalStateException("未登录,请重新扫码")
             val remotePlaylists = api.fetchUserPlaylists(uid)
-            refreshPlaylistTable(remotePlaylists)
+            cache.mergePlaylistTable(remotePlaylists)
             _progress.value = Progress(Stage.IDLE, "")
             Diag.i(TAG_ENGINE, "refreshPlaylistsOnly ok, ${remotePlaylists.size} 个")
             return remotePlaylists.size
@@ -252,77 +261,18 @@ class SyncEngine(
         return diff
     }
 
-    private suspend fun refreshPlaylistTable(remote: List<PlaylistDto>) {
-        val existing = playlistDao.getAll().associateBy { it.id }
-        val merged = remote.map { p ->
-            // 保留用户已设置的 enabled 标志
-            PlaylistEntity(
-                id = p.id,
-                name = p.name,
-                cover = p.coverImgUrl,
-                trackCount = p.trackCount,
-                enabled = existing[p.id]?.enabled ?: false,
-            )
-        }
-        playlistDao.upsertAll(merged)
-        // 远端已删除的歌单:清掉关联,歌曲引用计数随之下降,交给 diff 处理
-        val remoteIds = remote.map { it.id }.toSet()
-        existing.keys.filter { it !in remoteIds }.forEach { id ->
-            playlistSongDao.deleteByPlaylist(id)
-            playlistDao.delete(id)
-        }
-    }
-
-    private suspend fun refreshPlaylistTracks(playlist: PlaylistEntity) {
-        val detail = api.fetchPlaylistTrackIds(playlist.id)
-        val remoteIds = detail.trackIds.map { it.id }
-        if (remoteIds.isEmpty()) return
-        Diag.i(TAG_ENGINE, "歌单 ${playlist.id} 曲目 ${remoteIds.size} 首")
-
-        val songs = api.fetchSongDetails(remoteIds)
-        val existing = songDao.getByIds(remoteIds).associateBy { it.songId }
-        val now = System.currentTimeMillis()
-        val merged = songs.map { s ->
-            val old = existing[s.id]
-            if (old != null) {
-                old.copy(
-                    name = s.name,
-                    artist = s.ar.joinToString("/") { it.name },
-                    album = s.al?.name,
-                    duration = s.dt,
-                    updatedAt = now,
-                )
-            } else {
-                SongEntity(
-                    songId = s.id,
-                    name = s.name,
-                    artist = s.ar.joinToString("/") { it.name },
-                    album = s.al?.name,
-                    duration = s.dt,
-                    md5 = null,
-                    size = 0,
-                    br = 0,
-                    type = null,
-                    state = SongState.PENDING.name,
-                    updatedAt = now,
-                )
-            }
-        }
-        songDao.upsertAll(merged)
-        playlistSongDao.deleteByPlaylist(playlist.id)
-        playlistSongDao.insertAll(
-            merged.mapIndexed { index, song ->
-                PlaylistSongEntity(playlist.id, song.songId, index)
-            },
-        )
-        playlistDao.setLastSyncAt(playlist.id, now)
-    }
 
     private suspend fun computeDiff(): Diff {
         _progress.value = Progress(Stage.REFRESHING, "正在比对本地与歌单…")
         val remoteIds = playlistSongDao.enabledPlaylistSongIds().toHashSet()
-        val localIds = songDao.getAllIds()
-        val toDelete = songDao.getByIds(localIds.filter { it !in remoteIds })
+        // 文件删除集合:本地有文件、但已不在任何勾选歌单里的歌。
+        //
+        // 这里**只看有没有本地文件**,而不是"所有 song 行"—— 浏览过的未勾选歌单会
+        // 留下元数据缓存(未下载),那些行不该每轮同步都被判成待删。
+        // 磁盘上的文件集合因此仍严格等于"已勾选歌单的并集",语义与改造前逐字一致。
+        // 传全部 song 行进去:"只看有本地文件的"这条不变量由 planLocalDeletions 自己把关
+        val allSongs = songDao.getByIds(songDao.getAllIds())
+        val toDelete = planLocalDeletions(allSongs, remoteIds, playingSongId())
 
         val pending = songDao.getByIds(remoteIds.toList())
             .filter { it.state != SongState.OK.name }

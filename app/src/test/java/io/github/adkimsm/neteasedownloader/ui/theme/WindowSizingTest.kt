@@ -121,4 +121,64 @@ class WindowSizingTest {
         val compact = sizingFor(WindowClass.Compact)
         assertTrue(compact.progressPercentSp <= 28)
     }
+
+    @Test
+    fun playerTokens_shrinkMonotonicallyWithWindow() {
+        val compact = sizingFor(WindowClass.Compact)
+        val medium = sizingFor(WindowClass.Medium)
+        val expanded = sizingFor(WindowClass.Expanded)
+
+        assertTrue(compact.playerControl <= medium.playerControl)
+        assertTrue(medium.playerControl <= expanded.playerControl)
+
+        assertTrue(compact.seekBarHeight <= medium.seekBarHeight)
+        assertTrue(medium.seekBarHeight <= expanded.seekBarHeight)
+
+        assertTrue(compact.menuRowHeight <= medium.menuRowHeight)
+        assertTrue(medium.menuRowHeight <= expanded.menuRowHeight)
+
+        assertTrue(compact.bannerMinHeight <= medium.bannerMinHeight)
+        assertTrue(medium.bannerMinHeight <= expanded.bannerMinHeight)
+    }
+
+    @Test
+    fun menuRowHeight_respectsTouchTargetFloor() {
+        // 二级菜单行 / 曲目行也是点击目标,不得低于 36dp 下限
+        WindowClass.entries.forEach { wc ->
+            assertTrue(
+                "menuRowHeight for $wc was ${sizingFor(wc).menuRowHeight}",
+                sizingFor(wc).menuRowHeight.value >= 36f,
+            )
+        }
+    }
+
+    @Test
+    fun seekBarHeight_respectsTouchTargetFloor() {
+        // 进度条要能拖:拖动区域小于 36dp 在手表上基本拖不动
+        WindowClass.entries.forEach { wc ->
+            assertTrue(
+                "seekBarHeight for $wc was ${sizingFor(wc).seekBarHeight}",
+                sizingFor(wc).seekBarHeight.value >= 36f,
+            )
+        }
+    }
+
+    @Test
+    fun playerControl_isAtLeastAsLargeAsAnyOtherTapTarget() {
+        // 播放/暂停是全应用最重要的一个键,不该比别的可点元素还小
+        WindowClass.entries.forEach { wc ->
+            val sizing = sizingFor(wc)
+            assertTrue(
+                "playerControl for $wc was ${sizing.playerControl}",
+                sizing.playerControl >= sizing.touchTarget,
+            )
+        }
+    }
+
+    @Test
+    fun playerControl_stillFitsInCompactWindow() {
+        // Compact 档竖向预算很紧:主控键不能大到把歌名与进度挤出去
+        val compact = sizingFor(WindowClass.Compact)
+        assertTrue(compact.playerControl.value <= 56f)
+    }
 }

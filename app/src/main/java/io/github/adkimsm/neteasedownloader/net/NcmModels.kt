@@ -73,6 +73,10 @@ data class PlaylistDto(
     val coverImgUrl: String? = null,
     val trackCount: Int = 0,
     val creator: CreatorDto? = null,
+    /** 5 = 「我喜欢的音乐」;其他类型见网易云文档 */
+    val specialType: Int = 0,
+    /** 是否收藏(他人歌单)。收藏来的歌单不可编辑。 */
+    val subscribed: Boolean = false,
 )
 
 @Serializable

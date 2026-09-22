@@ -55,6 +55,7 @@ fun PlaylistScreen(
     onToggle: (PlaylistEntity, Boolean) -> Unit,
     onSyncClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onOpenPlaylist: (Long) -> Unit,
     loading: Boolean = false,
     pendingToggleIds: Set<Long> = emptySet(),
     errorMessage: String? = null,
@@ -111,6 +112,7 @@ fun PlaylistScreen(
                                 playlist = playlist,
                                 checked = playlist.enabled,
                                 onCheckedChange = { onToggle(playlist, it) },
+                                onOpen = { onOpenPlaylist(playlist.id) },
                                 toggleLoading = playlist.id in pendingToggleIds,
                             )
                         }

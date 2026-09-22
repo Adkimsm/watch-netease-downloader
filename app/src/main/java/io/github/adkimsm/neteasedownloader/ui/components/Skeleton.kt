@@ -161,6 +161,37 @@ fun PlaylistSkeletonList(
     }
 }
 
+/**
+ * 曲目列表骨架屏。形状与真实曲目行对齐(两行文字 + 右侧状态位),无封面 ——
+ * 播放器不显示专辑图,骨架也不该凭空画一个方块出来。
+ */
+@Composable
+fun TrackSkeletonList(
+    modifier: Modifier = Modifier,
+    count: Int = 6,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        repeat(count) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    SkeletonLine(widthFraction = 0.62f)
+                    SkeletonLine(widthFraction = 0.3f, height = 10.dp)
+                }
+                Spacer(Modifier.width(Spacing.sm))
+                SkeletonLine(widthFraction = 0.18f, height = 10.dp)
+            }
+        }
+    }
+}
+
 /** 同步预览页的统计行骨架 */
 @Composable
 fun StatSkeleton(modifier: Modifier = Modifier, rows: Int = 3) {

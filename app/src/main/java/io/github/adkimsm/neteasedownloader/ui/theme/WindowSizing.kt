@@ -67,6 +67,14 @@ data class WindowSizing(
     val progressPercentSp: Int,
     /** 底部操作区可用的最大垂直占比,超过则内容区滚动 */
     val footerMaxHeightFraction: Float,
+    /** 播放页主控键(播放/暂停)直径 */
+    val playerControl: Dp,
+    /** 进度行最小高度。拖动手势要够大,不能只按视觉粗细给 */
+    val seekBarHeight: Dp,
+    /** 二级菜单 / 曲目行行高 */
+    val menuRowHeight: Dp,
+    /** 结果提示条(如删除后的撤销条)最小高度 */
+    val bannerMinHeight: Dp,
 ) {
     /** 水平/垂直标准间隙,随屏幕档次收缩 */
     val gapSm: Dp get() = if (windowClass == WindowClass.Compact) 6.dp else Spacing.sm
@@ -90,6 +98,10 @@ private val CompactSizing = WindowSizing(
     headerMinHeight = 36.dp,
     progressPercentSp = 24,
     footerMaxHeightFraction = 0.55f,
+    playerControl = 48.dp,
+    seekBarHeight = 36.dp,
+    menuRowHeight = 36.dp,
+    bannerMinHeight = 32.dp,
 )
 
 /** 常规手表窗口:372×430 主力机型 */
@@ -106,6 +118,10 @@ private val MediumSizing = WindowSizing(
     headerMinHeight = 42.dp,
     progressPercentSp = 26,
     footerMaxHeightFraction = 0.6f,
+    playerControl = 56.dp,
+    seekBarHeight = 44.dp,
+    menuRowHeight = 42.dp,
+    bannerMinHeight = 36.dp,
 )
 
 /** 大屏/方屏手表:沿用原先的宽松尺寸 */
@@ -122,6 +138,10 @@ private val ExpandedSizing = WindowSizing(
     headerMinHeight = Dimens.TouchTarget,
     progressPercentSp = 28,
     footerMaxHeightFraction = 0.7f,
+    playerControl = 64.dp,
+    seekBarHeight = 48.dp,
+    menuRowHeight = 48.dp,
+    bannerMinHeight = 40.dp,
 )
 
 /**

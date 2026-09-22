@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.database.Cursor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+/** SQLite 绑定变量上限的保守取值;单条 IN 查询的 id 数量不得超过它 */
+private const val SQL_BIND_LIMIT = 500
 
 private fun Cursor.getLongByName(name: String): Long = getLong(getColumnIndexOrThrow(name))
 private fun Cursor.getStringByName(name: String): String? = getString(getColumnIndexOrThrow(name))
@@ -16,6 +18,8 @@ private fun Cursor.toPlaylist(): PlaylistEntity = PlaylistEntity(
     trackCount = getIntByName("trackCount"),
     enabled = getIntByName("enabled") != 0,
     lastSyncAt = if (isNull(getColumnIndexOrThrow("lastSyncAt"))) null else getLongByName("lastSyncAt"),
+    creatorId = getLongByName("creatorId"),
+    specialType = getIntByName("specialType"),
 )
 
 private fun Cursor.toSong(): SongEntity = SongEntity(
@@ -57,6 +61,8 @@ class PlaylistDao(private val db: AppDatabase) {
                     put("trackCount", p.trackCount)
                     put("enabled", if (p.enabled) 1 else 0)
                     p.lastSyncAt?.let { put("lastSyncAt", it) }
+                    put("creatorId", p.creatorId)
+                    put("specialType", p.specialType)
                 }
                 insertWithOnConflict(
                     "playlist", null, values,
@@ -84,13 +90,16 @@ class PlaylistDao(private val db: AppDatabase) {
 class SongDao(private val db: AppDatabase) {
     suspend fun getByIds(ids: List<Long>): List<SongEntity> = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext emptyList()
-        val placeholders = ids.joinToString(",") { "?" }
-        db.readableDatabase
-            .rawQuery(
-                "SELECT * FROM song WHERE songId IN ($placeholders)",
-                ids.map { it.toString() }.toTypedArray(),
-            )
-            .use { cursor -> cursor.mapRows { it.toSong() } }
+        // 分批查询:SQLite 的绑定变量上限(旧版安卓 999)会被三四千首的大歌单顶穿
+        ids.distinct().chunked(SQL_BIND_LIMIT).flatMap { chunk ->
+            val placeholders = chunk.joinToString(",") { "?" }
+            db.readableDatabase
+                .rawQuery(
+                    "SELECT * FROM song WHERE songId IN ($placeholders)",
+                    chunk.map { it.toString() }.toTypedArray(),
+                )
+                .use { cursor -> cursor.mapRows { it.toSong() } }
+        }
     }
 
     suspend fun getAllIds(): List<Long> = withContext(Dispatchers.IO) {
@@ -191,12 +200,30 @@ class SongDao(private val db: AppDatabase) {
             }
         }
     }
+
+    /**
+     * 回收既没有歌单引用、也不是红心的 song 行。
+     *
+     * 浏览过的歌单会留下元数据缓存(以便未下载也能展示/串流),所以这里只清
+     * "彻底没人要"的那些 —— 否则缓存会无限增长。
+     */
+    suspend fun deleteUnreferenced() = withContext(Dispatchers.IO) {
+        db.writableDatabase.execSQL(
+            """
+            DELETE FROM song WHERE songId NOT IN (SELECT songId FROM playlist_song)
+              AND songId NOT IN (SELECT songId FROM liked_song)
+            """.trimIndent(),
+        )
+    }
 }
 
 class PlaylistSongDao(private val db: AppDatabase) {
     suspend fun songIdsForPlaylist(playlistId: Long): List<Long> = withContext(Dispatchers.IO) {
         db.readableDatabase
-            .rawQuery("SELECT songId FROM playlist_song WHERE playlistId = ?", arrayOf(playlistId.toString()))
+            .rawQuery(
+                "SELECT songId FROM playlist_song WHERE playlistId = ? ORDER BY sortIndex",
+                arrayOf(playlistId.toString()),
+            )
             .use { cursor -> cursor.mapRows { it.getLong(0) } }
     }
 
@@ -211,6 +238,30 @@ class PlaylistSongDao(private val db: AppDatabase) {
                 null,
             )
             .use { cursor -> cursor.mapRows { it.getLong(0) } }
+    }
+
+    /** 所有歌单(含未勾选)的歌曲 id 并集 —— 决定 song 行能否被回收 */
+    suspend fun allSongIds(): List<Long> = withContext(Dispatchers.IO) {
+        db.readableDatabase
+            .rawQuery("SELECT DISTINCT songId FROM playlist_song", null)
+            .use { cursor -> cursor.mapRows { it.getLong(0) } }
+    }
+
+    /** 一首歌出现在哪些歌单里(歌单名 + 归属),供删除范围面板使用 */
+    suspend fun playlistsContaining(songId: Long): List<Pair<Long, String>> = withContext(Dispatchers.IO) {
+        db.readableDatabase
+            .rawQuery(
+                """
+                SELECT p.id AS id, p.name AS name FROM playlist_song ps
+                JOIN playlist p ON p.id = ps.playlistId
+                WHERE ps.songId = ?
+                ORDER BY p.name
+                """.trimIndent(),
+                arrayOf(songId.toString()),
+            )
+            .use { cursor ->
+                cursor.mapRows { it.getLongByName("id") to (it.getStringByName("name") ?: "") }
+            }
     }
 
     suspend fun insertAll(entries: List<PlaylistSongEntity>) = withContext(Dispatchers.IO) {
@@ -245,6 +296,63 @@ class PlaylistSongDao(private val db: AppDatabase) {
             .rawQuery("SELECT COUNT(*) FROM playlist_song WHERE songId = ?", arrayOf(songId.toString()))
             .use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) else 0 }
     }
+}
+
+/**
+ * 红心歌曲。
+ *
+ * 与 `playlist_song` 分开存:「我喜欢的音乐」的曲目在远端是一个歌单,但增删走
+ * `radio/like` 而不是歌单曲目接口,本地也就需要一份独立的事实来源。
+ */
+class LikedSongDao(private val db: AppDatabase) {
+    suspend fun allIds(): List<Long> = withContext(Dispatchers.IO) {
+        db.readableDatabase
+            .rawQuery("SELECT songId FROM liked_song ORDER BY likedAt DESC", null)
+            .use { cursor -> cursor.mapRows { it.getLong(0) } }
+    }
+
+    suspend fun count(): Int = withContext(Dispatchers.IO) {
+        db.readableDatabase
+            .rawQuery("SELECT COUNT(*) FROM liked_song", null)
+            .use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) else 0 }
+    }
+
+    /** 远端全量覆盖。以服务端为准,本地多余的删掉、缺的补上。 */
+    suspend fun replaceAll(songIds: List<Long>, likedAt: Long = System.currentTimeMillis()) =
+        withContext(Dispatchers.IO) {
+            val wanted = songIds.toHashSet()
+            db.writableDatabase.inTransaction {
+                wanted.forEach { id ->
+                    execSQL(
+                        "INSERT OR REPLACE INTO liked_song (songId, likedAt) VALUES (?, ?)",
+                        arrayOf<Any>(id, likedAt),
+                    )
+                }
+                rawQuery("SELECT songId FROM liked_song", null).use { cursor ->
+                    val stale = buildList {
+                        while (cursor.moveToNext()) {
+                            val id = cursor.getLong(0)
+                            if (id !in wanted) add(id)
+                        }
+                    }
+                    stale.forEach { execSQL("DELETE FROM liked_song WHERE songId = ?", arrayOf<Any>(it)) }
+                }
+            }
+        }
+
+    suspend fun setLiked(songId: Long, liked: Boolean, at: Long = System.currentTimeMillis()) =
+        withContext(Dispatchers.IO) {
+            if (liked) {
+                db.writableDatabase.execSQL(
+                    "INSERT OR REPLACE INTO liked_song (songId, likedAt) VALUES (?, ?)",
+                    arrayOf<Any>(songId, at),
+                )
+            } else {
+                db.writableDatabase.execSQL("DELETE FROM liked_song WHERE songId = ?", arrayOf<Any>(songId))
+            }
+        }
+
+    suspend fun likedSet(): Set<Long> = allIds().toHashSet()
 }
 
 private inline fun <T> Cursor.mapRows(mapper: (Cursor) -> T): List<T> {
