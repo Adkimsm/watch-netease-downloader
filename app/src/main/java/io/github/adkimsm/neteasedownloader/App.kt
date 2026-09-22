@@ -1,6 +1,13 @@
 package io.github.adkimsm.neteasedownloader
 
 import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
 import io.github.adkimsm.neteasedownloader.data.AppDatabase
 import io.github.adkimsm.neteasedownloader.data.CookieStore
 import io.github.adkimsm.neteasedownloader.data.MediaStoreWriter
@@ -11,6 +18,11 @@ import io.github.adkimsm.neteasedownloader.data.SongDao
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.NcmApi
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
+import io.github.adkimsm.neteasedownloader.player.LocalFirstResolver
+import io.github.adkimsm.neteasedownloader.player.NcmPlaybackSource
+import io.github.adkimsm.neteasedownloader.player.PlaybackRepository
+import io.github.adkimsm.neteasedownloader.player.QueueStore
+import io.github.adkimsm.neteasedownloader.player.PlaybackUri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,6 +53,45 @@ class App : Application() {
             mediaStoreWriter = mediaStoreWriter,
         )
     }
+
+    // ---------- 播放 ----------
+
+    val queueStore: QueueStore by lazy { QueueStore(this) }
+
+    val playbackSource: NcmPlaybackSource by lazy {
+        NcmPlaybackSource(songDao = songDao, api = ncmApi, settingsStore = settingsStore)
+    }
+
+    val localFirstResolver: LocalFirstResolver by lazy {
+        LocalFirstResolver(source = playbackSource, hasNetwork = ::isNetworkAvailable)
+    }
+
+    val playbackRepository: PlaybackRepository by lazy {
+        PlaybackRepository(
+            appContext = this,
+            songDao = songDao,
+            queueStore = queueStore,
+            source = playbackSource,
+            resolver = localFirstResolver,
+            scope = appScope,
+        )
+    }
+
+    /**
+     * 队列里所有曲目都写成 [PlaybackUri] 的自定义 scheme,
+     * 真实地址(本地 content:// 或串流 https://)由 [localFirstResolver] 在打开前解析。
+     */
+    fun playbackMediaSourceFactory(): MediaSource.Factory =
+        DefaultMediaSourceFactory(
+            ResolvingDataSource.Factory(DefaultDataSource.Factory(this), localFirstResolver),
+        )
+
+    /** 串流兜底用:无网时未下载的歌直接判为不可播 */
+    fun isNetworkAvailable(): Boolean = runCatching {
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return@runCatching false
+        val caps = manager.getNetworkCapabilities(manager.activeNetwork) ?: return@runCatching false
+        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }.getOrDefault(false)
 
     override fun onCreate() {
         super.onCreate()

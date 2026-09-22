@@ -163,6 +163,26 @@ class SongDao(private val db: AppDatabase) {
         )
     }
 
+    /**
+     * 清掉本地文件的账:文件已被删/被移出时,保留歌曲元数据,只把本地态清空。
+     *
+     * 与 [deleteByIds] 的区别是**不删行** —— 未勾选歌单里的歌仍要能浏览、能串流,
+     * 把行删了会导致每次进歌单详情都重新拉一遍。
+     */
+    suspend fun clearLocal(ids: List<Long>) = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext
+        val now = System.currentTimeMillis()
+        db.writableDatabase.inTransaction {
+            ids.forEach { id ->
+                execSQL(
+                    "UPDATE song SET state = ?, localUri = NULL, md5 = NULL, size = 0, updatedAt = ? " +
+                        "WHERE songId = ?",
+                    arrayOf<Any?>(SongState.PENDING.name, now, id),
+                )
+            }
+        }
+    }
+
     suspend fun deleteByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext
         db.writableDatabase.inTransaction {

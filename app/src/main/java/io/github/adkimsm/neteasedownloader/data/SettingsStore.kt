@@ -19,8 +19,20 @@ class SettingsStore(private val ctx: Context, appScope: CoroutineScope) {
         .map { it[LEVEL_KEY] ?: LEVEL_STANDARD }
         .stateIn(appScope, SharingStarted.Eagerly, LEVEL_STANDARD)
 
+    /**
+     * 在线串流音质。与下载音质分开:磁盘上可以存无损,但手表串流无损基本必卡,
+     * 所以串流单独一档(默认极高 320kbps)。
+     */
+    val streamLevel = ctx.settingsDataStore.data
+        .map { it[STREAM_LEVEL_KEY] ?: LEVEL_EXHIGH }
+        .stateIn(appScope, SharingStarted.Eagerly, LEVEL_EXHIGH)
+
     suspend fun setLevel(level: String) {
         ctx.settingsDataStore.edit { it[LEVEL_KEY] = level }
+    }
+
+    suspend fun setStreamLevel(level: String) {
+        ctx.settingsDataStore.edit { it[STREAM_LEVEL_KEY] = level }
     }
 
     companion object {
@@ -30,5 +42,6 @@ class SettingsStore(private val ctx: Context, appScope: CoroutineScope) {
         const val LEVEL_LOSSLESS = "lossless"
         val LEVELS = listOf(LEVEL_STANDARD, LEVEL_HIGHER, LEVEL_EXHIGH, LEVEL_LOSSLESS)
         private val LEVEL_KEY = stringPreferencesKey("level")
+        private val STREAM_LEVEL_KEY = stringPreferencesKey("stream_level")
     }
 }

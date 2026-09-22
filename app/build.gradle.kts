@@ -83,6 +83,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.coil.compose)
+    // 播放内核:只取 exoplayer + session,不引 media3-ui(UI 自绘)、
+    // 也不引 media3-datasource-okhttp(用内置 DefaultHttpDataSource)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.session)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

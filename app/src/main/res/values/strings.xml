@@ -2,6 +2,9 @@
 <resources>
     <string name="app_name">网易云音乐同步</string>
 
+    <!-- ==================== 播放 ==================== -->
+    <string name="playback_channel_name">正在播放</string>
+
     <!-- ==================== 通用 ==================== -->
     <string name="common_back">返回</string>
     <string name="common_cancel">取消</string>
