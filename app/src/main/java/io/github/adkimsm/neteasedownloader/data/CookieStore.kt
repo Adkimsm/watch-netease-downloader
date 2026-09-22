@@ -97,6 +97,8 @@ class CookieStore(
 
     fun isLoggedIn(): Boolean = musicU.isNotEmpty()
 
+    override fun csrfToken(): String = csrf
+
     override fun cookieHeader(): String =
         listOf(
             "osver" to "16.2",

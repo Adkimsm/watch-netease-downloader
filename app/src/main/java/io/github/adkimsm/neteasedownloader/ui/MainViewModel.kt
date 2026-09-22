@@ -6,6 +6,14 @@ import androidx.lifecycle.viewModelScope
 import io.github.adkimsm.neteasedownloader.App
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
+import io.github.adkimsm.neteasedownloader.library.RemoveOutcome
+import io.github.adkimsm.neteasedownloader.library.RemoveReport
+import io.github.adkimsm.neteasedownloader.library.RemoveScope
+import io.github.adkimsm.neteasedownloader.library.RemoveSelection
+import io.github.adkimsm.neteasedownloader.library.SongPresence
+import io.github.adkimsm.neteasedownloader.library.defaultSelection
+import io.github.adkimsm.neteasedownloader.library.planFor
+import io.github.adkimsm.neteasedownloader.library.undoPlanFor
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
 import io.github.adkimsm.neteasedownloader.sync.SyncService
@@ -69,6 +77,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *
      * 页面与差量必须同源产出 —— 否则预览页可能在差量还没读到时就先渲染出来(白屏)。
      */
+    /** 删除流程的界面状态 */
+    data class DeleteState(
+        val presence: SongPresence? = null,
+        val selection: RemoveSelection = RemoveSelection(),
+        val loading: Boolean = false,
+        val inFlight: Boolean = false,
+        val banner: DeleteBanner? = null,
+    )
+
+    /** 删除后的结果条(3 秒内可撤销) */
+    data class DeleteBanner(
+        val songId: Long,
+        val songName: String,
+        val outcome: RemoveOutcome,
+        val report: RemoveReport,
+    )
+
     data class UiState(
         val dest: Dest,
         val diff: SyncEngine.Diff?,
@@ -77,6 +102,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         const val ACTION_LOGOUT = "logout"
+        private const val TAG = "MainViewModel"
         const val ACTION_LEVEL = "level"
         const val ACTION_STREAM_LEVEL = "streamLevel"
         private const val LEVEL_FEEDBACK_MS = 900L
@@ -252,5 +278,123 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearError() {
         _errorMessage.value = null
+    }
+    // ---------- 删除这首歌 ----------
+
+    val removeScope = appRef.settingsStore.removeScope
+
+    private val _delete = MutableStateFlow(DeleteState())
+    val delete = _delete.asStateFlow()
+
+    /** 曲库变动计数:详情页据此从缓存重读,不重新拉网络 */
+    private val _libraryVersion = MutableStateFlow(0)
+    val libraryVersion = _libraryVersion.asStateFlow()
+
+    /**
+     * 删除入口。
+     *
+     * `每次询问` → 先算清"这首歌在哪些歌单里"再进面板;
+     * `全部删除` / `只删本地` → **算完直接执行,不弹任何东西**(D8 的"点了就删")。
+     */
+    fun startRemove(songId: Long) {
+        viewModelScope.launch {
+            _delete.update { it.copy(loading = true, presence = null, banner = null) }
+            val scope = removeScope.value
+            val presence = runCatching { appRef.songRemover.presenceOf(songId) }
+                .getOrElse { e ->
+                    Diag.e(TAG, "读取歌曲归属失败 songId=$songId", e)
+                    SongPresence(songId = songId, songName = "")
+                }
+            _delete.update {
+                it.copy(
+                    loading = false,
+                    presence = presence,
+                    selection = defaultSelection(presence),
+                )
+            }
+
+            if (scope == RemoveScope.ASK) {
+                push(Dest.RemoveSong(songId))
+            } else {
+                executeRemove(presence, planFor(scope, presence))
+            }
+        }
+    }
+
+    /** 面板上确认后调用 */
+    fun confirmRemove() {
+        val presence = _delete.value.presence ?: return
+        val scope = removeScope.value
+        val selection = _delete.value.selection
+        executeRemove(presence, planFor(scope, presence, selection))
+    }
+
+
+    /** 重试失败的部分:只重发没成功的歌单/红心,不去重删已经删掉的本地文件 */
+    fun retryRemove() {
+        val banner = _delete.value.banner ?: return
+        val remaining = banner.report.remoteFailed.map { it.playlistId } + banner.report.remoteStale
+        val retryUnlike = banner.outcome.unlike && banner.report.unlikeOk != true
+        if (remaining.isEmpty() && !retryUnlike) {
+            dismissDeleteBanner()
+            return
+        }
+        executeRemove(
+            presence = SongPresence(banner.songId, banner.songName),
+            outcome = banner.outcome.copy(
+                remoteTargets = remaining,
+                unlike = retryUnlike,
+                deleteLocal = false,
+            ),
+        )
+    }
+
+
+    private fun executeRemove(presence: SongPresence, outcome: RemoveOutcome) {
+        viewModelScope.launch {
+            _delete.update { it.copy(inFlight = true) }
+            val report = runCatching { appRef.songRemover.remove(presence.songId, outcome) }
+                .getOrElse { e ->
+                    Diag.e(TAG, "删除歌曲失败 songId=${presence.songId}", e)
+                    RemoveReport(songId = presence.songId, fileDeleted = false)
+                }
+            _delete.update {
+                it.copy(
+                    inFlight = false,
+                    banner = DeleteBanner(
+                        songId = presence.songId,
+                        songName = presence.songName,
+                        outcome = outcome,
+                        report = report,
+                    ),
+                )
+            }
+            _libraryVersion.update { it + 1 }
+            // 面板用完就退,返回时看到的是删除后的列表
+            if (_stack.value.lastOrNull() == Dest.RemoveSong(presence.songId)) pop()
+        }
+    }
+
+    fun updateSelection(selection: RemoveSelection) {
+        _delete.update { it.copy(selection = selection) }
+    }
+
+    fun dismissDeleteBanner() {
+        _delete.update { it.copy(banner = null) }
+    }
+
+    /** 撤销:把刚移除的歌加回歌单与红心。本地文件等下次同步自然下回。 */
+    fun undoRemove() {
+        val banner = _delete.value.banner ?: return
+        viewModelScope.launch {
+            _delete.update { it.copy(banner = null) }
+            appRef.songRemover.undo(banner.songId, undoPlanFor(banner.outcome, banner.report))
+            _libraryVersion.update { it + 1 }
+            refreshPlaylists()
+        }
+    }
+
+    fun setRemoveScope(scope: RemoveScope) {
+        viewModelScope.launch { appRef.settingsStore.setRemoveScope(scope) }
     }
 }

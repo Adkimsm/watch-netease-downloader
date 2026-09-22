@@ -20,7 +20,6 @@
     <string name="queue_title">播放队列</string>
     <string name="queue_empty">队列是空的</string>
     <string name="queue_remove">从队列移除</string>
-
     <string name="actions_title">更多</string>
     <string name="actions_queue">查看播放队列</string>
     <string name="actions_repeat">播放模式</string>
@@ -37,6 +36,36 @@
     <string name="detail_badge_missing">无版权</string>
 
     <string name="settings_stream_quality">在线播放音质</string>
+    <string name="settings_remove_scope">删除歌曲时</string>
+    <string name="settings_remove_ask">每次都询问</string>
+    <string name="settings_remove_ask_desc">先看这首歌在哪些歌单里,再决定删哪些</string>
+    <string name="settings_remove_all">全部删除</string>
+    <string name="settings_remove_all_desc">从所有本人歌单移除并删本地,点了就删(红心一并取消)</string>
+    <string name="settings_remove_local">只删本地</string>
+    <string name="settings_remove_local_desc">歌单不动,红心仍会取消;下次同步会重新下载</string>
+
+    <!-- ==================== 删除歌曲 ==================== -->
+    <string name="actions_delete">删除这首歌</string>
+    <string name="remove_title">删除这首歌</string>
+    <string name="remove_liked_hint">♥ 已红心 · 删除时自动取消</string>
+    <string name="remove_playlist_scope">歌单范围(%1$d)</string>
+    <string name="remove_not_owned">他人歌单,无法移除</string>
+    <string name="remove_local_only">只删本地文件,不动歌单</string>
+    <string name="remove_keep_local">保留本地文件(只整理歌单)</string>
+    <string name="remove_will_redownload">⚠ 「%1$s」仍在同步,删完下次同步会重新下载</string>
+    <string name="remove_confirm_with_playlists">删除(含 %1$d 个歌单)</string>
+    <string name="remove_confirm_playlists_only">从 %1$d 个歌单移除</string>
+    <string name="remove_confirm_local_only">删除本地文件</string>
+    <string name="remove_confirm_nothing">没有可执行的变更</string>
+    <string name="remove_banner_undo">撤销</string>
+    <string name="remove_banner_unliked">已取消红心</string>
+    <string name="remove_banner_done_with_playlists">已删除「%1$s」(含 %2$d 个歌单)</string>
+    <string name="remove_banner_playlists_only">已从 %2$d 个歌单移除「%1$s」· 本地文件保留</string>
+    <string name="remove_banner_local_only">已删除本地文件「%1$s」· 歌单未动</string>
+    <string name="remove_banner_noop">「%1$s」没有可执行的变更</string>
+    <string name="remove_banner_partial_failed">本地已删除;%1$d 个歌单移除失败</string>
+    <string name="remove_banner_stale">本地已删除;%1$d 个歌单服务端未生效</string>
+
     <string name="common_on">开</string>
     <string name="common_off">关</string>
 

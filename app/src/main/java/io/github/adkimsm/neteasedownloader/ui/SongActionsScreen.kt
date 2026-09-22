@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +48,7 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
  * 手表上不用 DropdownMenu:锚点菜单在 200dp 级别的窗口里会溢出屏幕,
  * 点击目标也远小于 36dp 的下限。整屏可滚动列表是这里唯一稳的形态。
  *
- * 删除 / 红心 / 加入歌单三行在后续阶段接入(见 PLAN Phase 10/11);
+ * 删除放在最上面且远离播放设置:手表上误触一个播放模式无所谓,误触"删除"就是真的删了。
  * 先把这层壳与"队列 + 播放模式"落地,避免出现点了没反应的行。
  */
 @Composable
@@ -57,6 +58,7 @@ fun SongActionsScreen(
     currentRepeat: Repeat,
     shuffle: Boolean,
     onBack: () -> Unit,
+    onDelete: () -> Unit,
     onOpenQueue: () -> Unit,
     onCycleRepeat: () -> Unit,
     onToggleShuffle: () -> Unit,
@@ -76,6 +78,18 @@ fun SongActionsScreen(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.size(sizing.gapSm))
+            HDivider()
+            Spacer(Modifier.size(sizing.gapSm))
+            // 破坏性操作置顶,且与下面的播放设置隔一条分隔线:
+            // 手表上误触一个播放模式无所谓,误触"删除"就是真的删了
+            ActionRow(
+                icon = Icons.Filled.DeleteOutline,
+                label = stringResource(R.string.actions_delete),
+                trailing = null,
+                onClick = onDelete,
+                destructive = true,
             )
             Spacer(Modifier.size(sizing.gapSm))
             HDivider()

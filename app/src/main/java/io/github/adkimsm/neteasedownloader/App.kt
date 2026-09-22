@@ -101,6 +101,20 @@ class App : Application() {
         val caps = manager.getNetworkCapabilities(manager.activeNetwork) ?: return@runCatching false
         caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }.getOrDefault(false)
+    // ---------- 远端歌单管理(删除这首歌) ----------
+
+    val songRemover: io.github.adkimsm.neteasedownloader.library.SongRemover by lazy {
+        io.github.adkimsm.neteasedownloader.library.SongRemover(
+            api = ncmApi,
+            playlistDao = playlistDao,
+            playlistSongDao = playlistSongDao,
+            songDao = songDao,
+            likedSongDao = likedSongDao,
+            mediaStoreWriter = mediaStoreWriter,
+            playback = playbackRepository,
+            uid = { cookieStore.uidState.value },
+        )
+    }
 
     override fun onCreate() {
         super.onCreate()

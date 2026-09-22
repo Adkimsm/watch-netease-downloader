@@ -28,6 +28,9 @@ sealed interface Dest {
 
     /** 单曲二级菜单(播放页与曲目行共用) */
     data class SongActions(val songId: Long) : Dest
+
+    /** 删除面板(仅"每次都询问"模式进入) */
+    data class RemoveSong(val songId: Long) : Dest
 }
 
 /**

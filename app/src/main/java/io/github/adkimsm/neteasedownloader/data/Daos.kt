@@ -353,6 +353,13 @@ class LikedSongDao(private val db: AppDatabase) {
         }
 
     suspend fun likedSet(): Set<Long> = allIds().toHashSet()
+
+    /** 单曲判定。别用 likedSet().contains() —— 红心几千首时那是白读一整张表。 */
+    suspend fun isLiked(songId: Long): Boolean = withContext(Dispatchers.IO) {
+        db.readableDatabase
+            .rawQuery("SELECT 1 FROM liked_song WHERE songId = ? LIMIT 1", arrayOf(songId.toString()))
+            .use { cursor -> cursor.moveToFirst() }
+    }
 }
 
 private inline fun <T> Cursor.mapRows(mapper: (Cursor) -> T): List<T> {

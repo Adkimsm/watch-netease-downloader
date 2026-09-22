@@ -38,6 +38,8 @@ import io.github.adkimsm.neteasedownloader.ui.PlaylistDetailScreen
 import io.github.adkimsm.neteasedownloader.ui.PlaylistDetailViewModel
 import io.github.adkimsm.neteasedownloader.ui.PlaylistScreen
 import io.github.adkimsm.neteasedownloader.ui.QueueScreen
+import io.github.adkimsm.neteasedownloader.ui.DeleteResultBanner
+import io.github.adkimsm.neteasedownloader.ui.RemoveSongSheet
 import io.github.adkimsm.neteasedownloader.ui.SettingsScreen
 import io.github.adkimsm.neteasedownloader.ui.SongActionsScreen
 import io.github.adkimsm.neteasedownloader.ui.SyncPreviewScreen
@@ -78,6 +80,7 @@ private fun AppNavigation() {
     val stack by mainViewModel.stack.collectAsStateWithLifecycle()
     val playerState by playerViewModel.state.collectAsStateWithLifecycle()
     val playingSong by playerViewModel.song.collectAsStateWithLifecycle()
+    val deleteState by mainViewModel.delete.collectAsStateWithLifecycle()
     val sizing = LocalWindowSizing.current
 
     // 系统返回:栈非空就弹栈,而不是直接退出 App
@@ -153,11 +156,14 @@ private fun AppNavigation() {
                     val actionInFlight by mainViewModel.actionInFlight.collectAsStateWithLifecycle()
                     val levelChanged by mainViewModel.levelJustChanged.collectAsStateWithLifecycle()
                     val playlists by mainViewModel.playlists.collectAsStateWithLifecycle()
+                    val removeScope by mainViewModel.removeScope.collectAsStateWithLifecycle()
                     SettingsScreen(
                         currentLevel = level,
                         currentStreamLevel = streamLevel,
                         onLevelChange = mainViewModel::setLevel,
                         onStreamLevelChange = mainViewModel::setStreamLevel,
+                        removeScope = removeScope,
+                        onRemoveScopeChange = mainViewModel::setRemoveScope,
                         onBack = mainViewModel::pop,
                         onLogout = mainViewModel::logout,
                         onDiagnostics = mainViewModel::openDiagnostics,
@@ -187,6 +193,11 @@ private fun AppNavigation() {
                     val playlist by detailViewModel.playlist.collectAsStateWithLifecycle()
                     val loading by detailViewModel.loading.collectAsStateWithLifecycle()
                     val error by detailViewModel.error.collectAsStateWithLifecycle()
+                    val libraryVersion by mainViewModel.libraryVersion.collectAsStateWithLifecycle()
+                    // 删完之后列表要立刻少一首 —— 只读本地缓存,不重新拉网络
+                    LaunchedEffect(libraryVersion) {
+                        if (libraryVersion > 0) detailViewModel.refreshFromCache()
+                    }
                     PlaylistDetailScreen(
                         title = playlist?.name
                             ?: stringResource(R.string.playlist_title),
@@ -232,6 +243,18 @@ private fun AppNavigation() {
                     )
                 }
 
+                is Dest.RemoveSong -> {
+                    RemoveSongSheet(
+                        presence = deleteState.presence,
+                        loading = deleteState.loading,
+                        inFlight = deleteState.inFlight,
+                        selection = deleteState.selection,
+                        onSelectionChange = mainViewModel::updateSelection,
+                        onConfirm = mainViewModel::confirmRemove,
+                        onBack = mainViewModel::pop,
+                    )
+                }
+
                 is Dest.SongActions -> {
                     // 二级菜单可能从一个不在播放的歌进入,标题得单独查一次
                     val title by produceState(initialValue = "", dest.songId) {
@@ -244,12 +267,29 @@ private fun AppNavigation() {
                         currentRepeat = playerState.repeat,
                         shuffle = playerState.shuffle,
                         onBack = mainViewModel::pop,
+                        onDelete = { mainViewModel.startRemove(dest.songId) },
                         onOpenQueue = mainViewModel::openQueue,
                         onCycleRepeat = playerViewModel::cycleRepeat,
                         onToggleShuffle = playerViewModel::toggleShuffle,
                     )
                 }
             }
+        }
+
+        deleteState.banner?.let { banner ->
+            DeleteResultBanner(
+                songName = banner.songName,
+                outcome = banner.outcome,
+                report = banner.report,
+                onUndo = mainViewModel::undoRemove,
+                onRetry = mainViewModel::retryRemove,
+                onDismiss = mainViewModel::dismissDeleteBanner,
+                modifier = Modifier.padding(
+                    start = sizing.screenPadding,
+                    end = sizing.screenPadding,
+                    bottom = sizing.gapSm,
+                ),
+            )
         }
 
         if (uiState.showMiniPlayer) {

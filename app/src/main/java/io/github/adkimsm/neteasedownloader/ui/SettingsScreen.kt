@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.SettingsStore
+import io.github.adkimsm.neteasedownloader.library.RemoveScope
 import io.github.adkimsm.neteasedownloader.ui.components.ConfirmDialog
 import io.github.adkimsm.neteasedownloader.ui.components.HDivider
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
@@ -59,6 +60,8 @@ fun SettingsScreen(
     currentStreamLevel: String,
     onStreamLevelChange: (String) -> Unit,
     onBack: () -> Unit,
+    removeScope: RemoveScope,
+    onRemoveScopeChange: (RemoveScope) -> Unit,
     onLogout: () -> Unit,
     onDiagnostics: () -> Unit,
     loggingOut: Boolean = false,
@@ -116,6 +119,25 @@ fun SettingsScreen(
                     loading = false,
                     showCheck = level == currentStreamLevel && levelJustChanged,
                     onClick = { onStreamLevelChange(level) },
+                )
+                Spacer(Modifier.height(sizing.gapSm / 2))
+            }
+
+            Spacer(Modifier.height(sizing.gapMd))
+            HDivider()
+            Spacer(Modifier.height(sizing.gapMd))
+            Text(
+                text = stringResource(R.string.settings_remove_scope),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+            )
+            Spacer(Modifier.height(sizing.gapSm))
+
+            RemoveScope.entries.forEach { scope ->
+                ScopeOption(
+                    scope = scope,
+                    selected = scope == removeScope,
+                    onClick = { onRemoveScopeChange(scope) },
                 )
                 Spacer(Modifier.height(sizing.gapSm / 2))
             }
@@ -238,6 +260,64 @@ private fun QualityOption(
         }
     }
 }
+
+/** 删除模式的一档 */
+@Composable
+private fun ScopeOption(scope: RemoveScope, selected: Boolean, onClick: () -> Unit) {
+    val sizing = LocalWindowSizing.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = sizing.touchTarget)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) SurfaceLevel1 else MaterialTheme.colorScheme.background)
+            .clickable(role = Role.RadioButton, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(sizing.touchTarget)
+                .background(if (selected) BrandRed else MaterialTheme.colorScheme.background),
+        )
+        Spacer(Modifier.width(Spacing.sm))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = Spacing.xs),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = scopeTitle(scope),
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextPrimary,
+            )
+            Text(
+                text = scopeDescription(scope),
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun scopeTitle(scope: RemoveScope): String = stringResource(
+    when (scope) {
+        RemoveScope.ASK -> R.string.settings_remove_ask
+        RemoveScope.ALL -> R.string.settings_remove_all
+        RemoveScope.LOCAL_ONLY -> R.string.settings_remove_local
+    },
+)
+
+@Composable
+private fun scopeDescription(scope: RemoveScope): String = stringResource(
+    when (scope) {
+        RemoveScope.ASK -> R.string.settings_remove_ask_desc
+        RemoveScope.ALL -> R.string.settings_remove_all_desc
+        RemoveScope.LOCAL_ONLY -> R.string.settings_remove_local_desc
+    },
+)
 
 @Composable
 private fun levelTitle(level: String): String = when (level) {

@@ -73,6 +73,11 @@ class PlaylistDetailViewModel(
         _playlist.value = appRef.playlistDao.getAll().firstOrNull { it.id == playlistId }
     }
 
+    /** 删完之后只从本地缓存重读,不重新拉网络 —— 远端变化已由 SongRemover 写回库里 */
+    fun refreshFromCache() {
+        viewModelScope.launch { _tracks.value = cachedTracks() }
+    }
+
     private suspend fun cachedTracks(): List<SongEntity> {
         val ids = appRef.playlistSongDao.songIdsForPlaylist(playlistId)
         if (ids.isEmpty()) return emptyList()

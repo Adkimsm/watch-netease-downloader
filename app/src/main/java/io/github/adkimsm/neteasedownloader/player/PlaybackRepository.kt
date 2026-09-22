@@ -11,6 +11,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import io.github.adkimsm.neteasedownloader.data.SongDao
 import io.github.adkimsm.neteasedownloader.data.SongEntity
+import io.github.adkimsm.neteasedownloader.library.PlaybackControl
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -59,7 +60,7 @@ class PlaybackRepository(
     private val source: NcmPlaybackSource,
     private val resolver: LocalFirstResolver,
     private val scope: CoroutineScope,
-) {
+) : PlaybackControl {
 
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
@@ -217,7 +218,7 @@ class PlaybackRepository(
     }
 
     /** 从队列里移除一首(删除歌曲时也要调用)。返回是否命中。 */
-    fun removeFromQueue(songId: Long) = onController { c ->
+    override fun removeFromQueue(songId: Long) = onController { c ->
         for (i in 0 until c.mediaItemCount) {
             if (c.getMediaItemAt(i).mediaId == songId.toString()) {
                 c.removeMediaItem(i)
@@ -227,13 +228,15 @@ class PlaybackRepository(
     }
 
     /** 正在播这首歌时:停下并跳到下一首(删除歌曲前调用) */
-    fun stopIfPlaying(songId: Long) = onController { c ->
+    override fun stopIfPlaying(songId: Long) = onController { c ->
         val current = c.currentMediaItem?.mediaId?.toLongOrNull()
         if (current == songId) {
             if (c.mediaItemCount > 1) c.seekToNextMediaItem() else c.stop()
         }
         removeFromQueue(songId)
     }
+
+    override fun currentSongIdOrNull(): Long? = _state.value.songId
 
     fun clearError() {
         _state.value = _state.value.copy(error = null)

@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.adkimsm.neteasedownloader.library.RemoveScope
+import io.github.adkimsm.neteasedownloader.library.removeScopeFrom
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -35,6 +37,18 @@ class SettingsStore(private val ctx: Context, appScope: CoroutineScope) {
         ctx.settingsDataStore.edit { it[STREAM_LEVEL_KEY] = level }
     }
 
+    /**
+     * 删除歌曲时如何处理远端。默认 [RemoveScope.ASK] —— 第一次删除一定让用户看见
+     * 到底发生了什么(哪些歌单、本地文件删不删),之后再按需要收紧成"点了就删"。
+     */
+    val removeScope = ctx.settingsDataStore.data
+        .map { removeScopeFrom(it[REMOVE_SCOPE_KEY]) }
+        .stateIn(appScope, SharingStarted.Eagerly, RemoveScope.ASK)
+
+    suspend fun setRemoveScope(scope: RemoveScope) {
+        ctx.settingsDataStore.edit { it[REMOVE_SCOPE_KEY] = scope.name }
+    }
+
     companion object {
         const val LEVEL_STANDARD = "standard"
         const val LEVEL_HIGHER = "higher"
@@ -43,5 +57,6 @@ class SettingsStore(private val ctx: Context, appScope: CoroutineScope) {
         val LEVELS = listOf(LEVEL_STANDARD, LEVEL_HIGHER, LEVEL_EXHIGH, LEVEL_LOSSLESS)
         private val LEVEL_KEY = stringPreferencesKey("level")
         private val STREAM_LEVEL_KEY = stringPreferencesKey("stream_level")
+        private val REMOVE_SCOPE_KEY = stringPreferencesKey("remove_scope")
     }
 }

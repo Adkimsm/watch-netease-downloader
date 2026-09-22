@@ -140,3 +140,9 @@ data class SongUrlDto(
     val level: String? = null,
 )
 
+/** 红心歌曲 id 列表(/api/song/like/get) */
+@Serializable
+data class LikedIdsResp(
+    val code: Int = 0,
+    val ids: List<Long> = emptyList(),
+)
