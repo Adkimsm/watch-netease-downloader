@@ -63,10 +63,11 @@ fun PlaylistDetailScreen(
     onDismissError: () -> Unit,
     onPlayTrack: (Int) -> Unit,
     onTrackActions: (Long) -> Unit,
+    action: (@Composable () -> Unit)? = null,
 ) {
     val sizing = LocalWindowSizing.current
 
-    ScreenScaffold(title = title, onBack = onBack) {
+    ScreenScaffold(title = title, onBack = onBack, action = action) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (error != null) {
                 ErrorBanner(message = error, onRetry = onRetry, onDismiss = onDismissError)

@@ -1,16 +1,24 @@
 package io.github.adkimsm.neteasedownloader.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -18,9 +26,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.ui.components.ErrorBanner
@@ -29,6 +40,7 @@ import io.github.adkimsm.neteasedownloader.ui.components.PlaylistRow
 import io.github.adkimsm.neteasedownloader.ui.components.PlaylistSkeletonList
 import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
+import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
@@ -56,6 +68,9 @@ fun PlaylistScreen(
     onSyncClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onOpenPlaylist: (Long) -> Unit,
+    likedEntry: LikedEntry?,
+    onOpenLiked: () -> Unit,
+    onCreatePlaylist: () -> Unit,
     loading: Boolean = false,
     pendingToggleIds: Set<Long> = emptySet(),
     errorMessage: String? = null,
@@ -67,6 +82,17 @@ fun PlaylistScreen(
     ScreenScaffold(
         title = stringResource(R.string.playlist_title),
         action = {
+            IconButton(
+                onClick = onCreatePlaylist,
+                modifier = Modifier.size(sizing.touchTarget),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.playlist_create),
+                    tint = TextPrimary,
+                    modifier = Modifier.size(sizing.iconSize),
+                )
+            }
             IconButton(
                 onClick = onSettingsClick,
                 modifier = Modifier.size(sizing.touchTarget),
@@ -107,6 +133,9 @@ fun PlaylistScreen(
 
                 else -> {
                     LazyColumn(modifier = Modifier.weight(1f)) {
+                        if (likedEntry != null) {
+                            item(key = "liked") { LikedEntryRow(likedEntry, onOpen = onOpenLiked) }
+                        }
                         items(playlists, key = { it.id }) { playlist ->
                             PlaylistRow(
                                 playlist = playlist,
@@ -204,6 +233,54 @@ private fun EmptyState(syncing: Boolean, modifier: Modifier = Modifier) {
                     textAlign = TextAlign.Center,
                 )
             }
+        }
+    }
+}
+
+/** 歌单列表首行的「我喜欢的音乐」入口 */
+data class LikedEntry(val count: Int)
+
+@Composable
+private fun LikedEntryRow(entry: LikedEntry, onOpen: () -> Unit) {
+    val sizing = LocalWindowSizing.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = sizing.touchTarget)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onOpen)
+            .padding(start = sizing.gapSm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(sizing.iconSize * 1.8f)
+                .clip(RoundedCornerShape(50))
+                .background(BrandRed),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "♥",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextPrimary,
+            )
+        }
+        Spacer(Modifier.width(sizing.gapSm))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.playlist_liked_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.playlist_track_count, entry.count),
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

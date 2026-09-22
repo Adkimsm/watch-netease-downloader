@@ -45,6 +45,24 @@
     <string name="settings_remove_local_desc">歌单不动,红心仍会取消;下次同步会重新下载</string>
 
     <!-- ==================== 删除歌曲 ==================== -->
+<!-- ==================== 歌单管理 ==================== -->
+    <string name="playlist_create">新建歌单</string>
+    <string name="playlist_rename">重命名歌单</string>
+    <string name="playlist_delete">删除歌单</string>
+    <string name="playlist_menu_title">歌单操作</string>
+    <string name="playlist_delete_title">删除歌单?</string>
+    <string name="playlist_delete_message">删除「%1$s」?此操作不可撤销。</string>
+    <string name="playlist_name_label">歌单名</string>
+    <string name="playlist_name_blank">歌单名不能为空</string>
+    <string name="playlist_name_too_long">歌单名太长(最多 %1$d 字)</string>
+    <string name="playlist_name_counter">%1$d / %2$d</string>
+    <string name="playlist_liked_title">我喜欢的音乐</string>
+
+    <string name="actions_like">红心</string>
+    <string name="actions_unlike">取消红心</string>
+    <string name="actions_add_to_playlist">加入歌单</string>
+    <string name="add_no_targets">没有可加入的歌单(先新建一个)</string>
+    <string name="add_confirm">加入 %1$d 个歌单</string>
     <string name="actions_delete">删除这首歌</string>
     <string name="remove_title">删除这首歌</string>
     <string name="remove_liked_hint">♥ 已红心 · 删除时自动取消</string>

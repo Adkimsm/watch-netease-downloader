@@ -18,6 +18,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +42,11 @@ import io.github.adkimsm.neteasedownloader.ui.PlaylistDetailViewModel
 import io.github.adkimsm.neteasedownloader.ui.PlaylistScreen
 import io.github.adkimsm.neteasedownloader.ui.QueueScreen
 import io.github.adkimsm.neteasedownloader.ui.DeleteResultBanner
+import io.github.adkimsm.neteasedownloader.ui.AddToPlaylistScreen
+import io.github.adkimsm.neteasedownloader.ui.LikedEntry
+import io.github.adkimsm.neteasedownloader.ui.LikedSongsViewModel
+import io.github.adkimsm.neteasedownloader.ui.PlaylistEditScreen
+import io.github.adkimsm.neteasedownloader.ui.PlaylistMenuScreen
 import io.github.adkimsm.neteasedownloader.ui.RemoveSongSheet
 import io.github.adkimsm.neteasedownloader.ui.SettingsScreen
 import io.github.adkimsm.neteasedownloader.ui.SongActionsScreen
@@ -119,6 +127,7 @@ private fun AppNavigation() {
                     val loading by mainViewModel.playlistsLoading.collectAsStateWithLifecycle()
                     val pendingToggles by mainViewModel.pendingToggleIds.collectAsStateWithLifecycle()
                     val errorMessage by mainViewModel.errorMessage.collectAsStateWithLifecycle()
+                    val likedCount by mainViewModel.likedCount.collectAsStateWithLifecycle()
                     PlaylistScreen(
                         playlists = playlists,
                         // FAILED 不在这里显示为"同步中":失败走下面的错误条
@@ -127,6 +136,9 @@ private fun AppNavigation() {
                         onSyncClick = mainViewModel::startSync,
                         onSettingsClick = mainViewModel::openSettings,
                         onOpenPlaylist = mainViewModel::openPlaylistDetail,
+                        likedEntry = LikedEntry(likedCount),
+                        onOpenLiked = mainViewModel::openLikedSongs,
+                        onCreatePlaylist = mainViewModel::openPlaylistCreate,
                         loading = loading,
                         pendingToggleIds = pendingToggles,
                         errorMessage = errorMessage,
@@ -255,14 +267,117 @@ private fun AppNavigation() {
                     )
                 }
 
+                Dest.LikedSongs -> {
+                    val likedViewModel: LikedSongsViewModel = viewModel()
+                    val tracks by likedViewModel.tracks.collectAsStateWithLifecycle()
+                    val loading by likedViewModel.loading.collectAsStateWithLifecycle()
+                    val error by likedViewModel.error.collectAsStateWithLifecycle()
+                    val libraryVersion by mainViewModel.libraryVersion.collectAsStateWithLifecycle()
+                    LaunchedEffect(libraryVersion) {
+                        if (libraryVersion > 0) likedViewModel.refreshFromCache()
+                    }
+                    PlaylistDetailScreen(
+                        title = stringResource(R.string.playlist_liked_title),
+                        tracks = tracks,
+                        loading = loading,
+                        error = error,
+                        pendingSongIds = emptySet(),
+                        onBack = mainViewModel::pop,
+                        onRetry = likedViewModel::load,
+                        onDismissError = likedViewModel::clearError,
+                        onPlayTrack = { index -> playerViewModel.playList(tracks, index, null) },
+                        onTrackActions = mainViewModel::openSongActions,
+                    )
+                }
+
+                is Dest.PlaylistMenu -> {
+                    val playlistName by produceState(initialValue = "", dest.playlistId) {
+                        value = app.playlistDao.getAll().firstOrNull { it.id == dest.playlistId }?.name.orEmpty()
+                    }
+                    PlaylistMenuScreen(
+                        playlistName = playlistName,
+                        onBack = mainViewModel::pop,
+                        onRename = { mainViewModel.openPlaylistEdit(dest.playlistId) },
+                        onDelete = {
+                            mainViewModel.deletePlaylist(dest.playlistId) { error ->
+                                if (error == null) {
+                                    // 删完回两层:菜单 -> 歌单详情 -> 列表
+                                    mainViewModel.pop()
+                                    mainViewModel.pop()
+                                }
+                            }
+                        },
+                    )
+                }
+
+                is Dest.PlaylistEdit -> {
+                    val playlistName by produceState(initialValue = "", dest.playlistId) {
+                        value = if (dest.playlistId == null) {
+                            ""
+                        } else {
+                            app.playlistDao.getAll().firstOrNull { it.id == dest.playlistId }?.name.orEmpty()
+                        }
+                    }
+                    val remoteAction by mainViewModel.remoteAction.collectAsStateWithLifecycle()
+                    var remoteError by remember { mutableStateOf<String?>(null) }
+                    PlaylistEditScreen(
+                        title = stringResource(
+                            if (dest.playlistId == null) R.string.playlist_create else R.string.playlist_rename,
+                        ),
+                        initialName = playlistName,
+                        submitting = remoteAction == MainViewModel.ACTION_REMOTE,
+                        remoteError = remoteError,
+                        onBack = {
+                            remoteError = null
+                            mainViewModel.pop()
+                        },
+                        onSubmit = { name ->
+                            remoteError = null
+                            val done: (String?) -> Unit = { error ->
+                                if (error == null) mainViewModel.pop() else remoteError = error
+                            }
+                            if (dest.playlistId == null) {
+                                mainViewModel.createPlaylist(name, done)
+                            } else {
+                                mainViewModel.renamePlaylist(dest.playlistId, name, done)
+                            }
+                        },
+                    )
+                }
+
+                is Dest.AddToPlaylist -> {
+                    val targets by mainViewModel.addTargets.collectAsStateWithLifecycle()
+                    val remoteAction by mainViewModel.remoteAction.collectAsStateWithLifecycle()
+                    val songName by produceState(initialValue = "", dest.songId) {
+                        value = app.songDao.getByIds(listOf(dest.songId)).firstOrNull()?.name.orEmpty()
+                    }
+                    LaunchedEffect(Unit) { mainViewModel.loadAddTargets() }
+                    AddToPlaylistScreen(
+                        songName = songName,
+                        targets = targets,
+                        submitting = remoteAction == MainViewModel.ACTION_REMOTE,
+                        onBack = mainViewModel::pop,
+                        onConfirm = { ids ->
+                            mainViewModel.addSongToPlaylists(dest.songId, ids) { error ->
+                                if (error == null) mainViewModel.pop()
+                                else mainViewModel.showRemoteError(error)
+                            }
+                        },
+                    )
+                }
+
                 is Dest.SongActions -> {
                     // 二级菜单可能从一个不在播放的歌进入,标题得单独查一次
                     val title by produceState(initialValue = "", dest.songId) {
                         value = app.songDao.getByIds(listOf(dest.songId))
                             .firstOrNull()?.name.orEmpty()
                     }
+                    val likedIds by mainViewModel.likedIds.collectAsStateWithLifecycle()
                     SongActionsScreen(
                         songTitle = title.ifEmpty { stringResource(R.string.player_nothing) },
+                        liked = dest.songId in likedIds,
+                        onToggleLike = { mainViewModel.toggleLike(dest.songId) },
+                        onAddToPlaylist = { mainViewModel.openAddToPlaylist(dest.songId) },
                         hasPlayer = playerState.songId != null,
                         currentRepeat = playerState.repeat,
                         shuffle = playerState.shuffle,

@@ -31,6 +31,18 @@ sealed interface Dest {
 
     /** 删除面板(仅"每次都询问"模式进入) */
     data class RemoveSong(val songId: Long) : Dest
+
+    /** 我喜欢的音乐 */
+    data object LikedSongs : Dest
+
+    /** 歌单级操作菜单(重命名 / 删除歌单) */
+    data class PlaylistMenu(val playlistId: Long) : Dest
+
+    /** 新建(playlistId == null)或重命名歌单 */
+    data class PlaylistEdit(val playlistId: Long?) : Dest
+
+    /** 把这首歌加入某些歌单 */
+    data class AddToPlaylist(val songId: Long) : Dest
 }
 
 /**

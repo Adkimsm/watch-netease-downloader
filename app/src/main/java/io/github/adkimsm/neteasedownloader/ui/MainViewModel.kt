@@ -6,7 +6,11 @@ import androidx.lifecycle.viewModelScope
 import io.github.adkimsm.neteasedownloader.App
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
+import io.github.adkimsm.neteasedownloader.data.isLikedPlaylistId
+import io.github.adkimsm.neteasedownloader.data.isOwnedBy
+import io.github.adkimsm.neteasedownloader.library.AddTarget
 import io.github.adkimsm.neteasedownloader.library.RemoveOutcome
+import io.github.adkimsm.neteasedownloader.library.addToPlaylistTargets
 import io.github.adkimsm.neteasedownloader.library.RemoveReport
 import io.github.adkimsm.neteasedownloader.library.RemoveScope
 import io.github.adkimsm.neteasedownloader.library.RemoveSelection
@@ -103,6 +107,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         const val ACTION_LOGOUT = "logout"
         private const val TAG = "MainViewModel"
+        const val ACTION_REMOTE = "remote"
         const val ACTION_LEVEL = "level"
         const val ACTION_STREAM_LEVEL = "streamLevel"
         private const val LEVEL_FEEDBACK_MS = 900L
@@ -156,6 +161,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _stack.value = emptyList()
                 } else {
                     refreshPlaylists()
+                    refreshLikes()
                 }
             }
         }
@@ -396,5 +402,115 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRemoveScope(scope: RemoveScope) {
         viewModelScope.launch { appRef.settingsStore.setRemoveScope(scope) }
+    }
+
+    // ---------- 远端歌单管理与红心 ----------
+
+    /** 正在进行中的远端写操作,供按钮转圈 */
+    private val _remoteAction = MutableStateFlow<String?>(null)
+    val remoteAction = _remoteAction.asStateFlow()
+
+    /** 「加入歌单」的候选(本人歌单,排除我喜欢的音乐) */
+    private val _addTargets = MutableStateFlow<List<AddTarget>>(emptyList())
+    val addTargets = _addTargets.asStateFlow()
+
+    /** 红心集合,供二级菜单显示当前状态 */
+    private val _likedIds = MutableStateFlow<Set<Long>>(emptySet())
+    val likedIds = _likedIds.asStateFlow()
+
+    /** 歌单列表首行「我喜欢的音乐」的曲目数 */
+    private val _likedCount = MutableStateFlow(0)
+    val likedCount = _likedCount.asStateFlow()
+
+    fun showRemoteError(message: String) {
+        _errorMessage.value = message
+    }
+
+    fun refreshLikes() {
+        viewModelScope.launch {
+            val ids = runCatching { appRef.likedSongDao.likedSet() }.getOrDefault(emptySet())
+            _likedIds.value = ids
+            _likedCount.value = ids.size
+        }
+    }
+
+    fun loadAddTargets() {
+        viewModelScope.launch {
+            val uid = appRef.cookieStore.uidState.value
+            _addTargets.value = addToPlaylistTargets(
+                appRef.playlistDao.getAll().map { p ->
+                    AddTarget(
+                        playlistId = p.id,
+                        name = p.name,
+                        owned = p.isOwnedBy(uid),
+                        liked = isLikedPlaylistId(p.id, p.specialType, uid),
+                    )
+                },
+            )
+        }
+    }
+
+    fun openLikedSongs() = push(Dest.LikedSongs)
+    fun openPlaylistMenu(playlistId: Long) = push(Dest.PlaylistMenu(playlistId))
+    fun openPlaylistCreate() = push(Dest.PlaylistEdit(null))
+    fun openPlaylistEdit(playlistId: Long) = push(Dest.PlaylistEdit(playlistId))
+    fun openAddToPlaylist(songId: Long) = push(Dest.AddToPlaylist(songId))
+
+    fun createPlaylist(name: String, onDone: (String?) -> Unit) =
+        runRemote(onDone) { appRef.ncmApi.createPlaylist(name) }
+
+    fun renamePlaylist(playlistId: Long, name: String, onDone: (String?) -> Unit) =
+        runRemote(onDone) { appRef.ncmApi.renamePlaylist(playlistId, name) }
+
+    fun deletePlaylist(playlistId: Long, onDone: (String?) -> Unit) = runRemote(onDone) {
+        appRef.ncmApi.removePlaylists(listOf(playlistId))
+        // 本地缓存跟着清,否则歌单页还会列出这个已经不存在的歌单
+        appRef.playlistSongDao.deleteByPlaylist(playlistId)
+        appRef.playlistDao.delete(playlistId)
+    }
+
+    fun addSongToPlaylists(songId: Long, playlistIds: List<Long>, onDone: (String?) -> Unit) =
+        runRemote(onDone) {
+            playlistIds.forEach { playlistId ->
+                appRef.ncmApi.addTracksToPlaylist(playlistId, listOf(songId))
+            }
+        }
+
+    /**
+     * 红心:乐观更新 + 失败翻回。
+     *
+     * 红心是高频的轻操作,等网络往返再改界面会让按钮"点不动";
+     * 而失败翻回是必须的 —— 否则本地显示已红心、服务端其实没有,删除流程里的
+     * 「自动取消红心」就会搞错对象。
+     */
+    fun toggleLike(songId: Long) {
+        val target = songId !in _likedIds.value
+        _likedIds.value = if (target) _likedIds.value + songId else _likedIds.value - songId
+        viewModelScope.launch {
+            val ok = runCatching { appRef.ncmApi.setLiked(songId, target) }.isSuccess
+            if (ok) {
+                appRef.likedSongDao.setLiked(songId, target)
+            } else {
+                _likedIds.value = if (target) _likedIds.value - songId else _likedIds.value + songId
+                _errorMessage.value = getApplication<Application>()
+                    .getString(R.string.error_operation_failed)
+            }
+            _libraryVersion.update { it + 1 }
+        }
+    }
+
+    /** 写操作统一收口:转圈、成功后刷新歌单表、把失败原因交回界面 */
+    private fun runRemote(onDone: (String?) -> Unit, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            _remoteAction.value = ACTION_REMOTE
+            val error = runCatching { block() }.exceptionOrNull()?.message
+            _remoteAction.value = null
+            if (error == null) {
+                runCatching { appRef.syncEngine.refreshPlaylistsOnly() }
+                refreshPlaylists()
+                _libraryVersion.update { it + 1 }
+            }
+            onDone(error)
+        }
     }
 }

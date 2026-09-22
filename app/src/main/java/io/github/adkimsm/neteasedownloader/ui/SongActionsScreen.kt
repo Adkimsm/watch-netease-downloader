@@ -17,6 +17,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +61,9 @@ fun SongActionsScreen(
     currentRepeat: Repeat,
     shuffle: Boolean,
     onBack: () -> Unit,
+    liked: Boolean,
+    onToggleLike: () -> Unit,
+    onAddToPlaylist: () -> Unit,
     onDelete: () -> Unit,
     onOpenQueue: () -> Unit,
     onCycleRepeat: () -> Unit,
@@ -91,6 +97,26 @@ fun SongActionsScreen(
                 onClick = onDelete,
                 destructive = true,
             )
+            Spacer(Modifier.size(sizing.gapSm))
+            HDivider()
+            Spacer(Modifier.size(sizing.gapSm))
+
+            ActionRow(
+                icon = if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                label = stringResource(
+                    if (liked) R.string.actions_unlike else R.string.actions_like,
+                ),
+                trailing = null,
+                onClick = onToggleLike,
+            )
+            Spacer(Modifier.size(sizing.gapSm / 2))
+            ActionRow(
+                icon = Icons.Filled.PlaylistAdd,
+                label = stringResource(R.string.actions_add_to_playlist),
+                trailing = null,
+                onClick = onAddToPlaylist,
+            )
+
             Spacer(Modifier.size(sizing.gapSm))
             HDivider()
             Spacer(Modifier.size(sizing.gapSm))
