@@ -8,6 +8,7 @@
     <string name="player_more">更多</string>
     <string name="player_nothing">未在播放</string>
     <string name="player_origin_local">本地</string>
+    <string name="player_origin_stream">在线</string>
     <string name="player_play">播放</string>
     <string name="player_pause">暂停</string>
     <string name="player_next">下一首</string>

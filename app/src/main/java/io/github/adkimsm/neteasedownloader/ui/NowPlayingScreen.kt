@@ -124,7 +124,11 @@ fun NowPlayingScreen(
                 Text(
                     text = listOfNotNull(
                         song?.artist?.takeIf { it.isNotBlank() },
-                        song?.let { if (it.hasLocalFile) stringResource(R.string.player_origin_local) else null },
+                        song?.let {
+                            stringResource(
+                                if (it.hasLocalFile) R.string.player_origin_local else R.string.player_origin_stream,
+                            )
+                        },
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
