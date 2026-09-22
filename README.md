@@ -1,6 +1,8 @@
-# 网易云音乐同步
+# 网易云音乐手表版
 
-把手表变成离线音乐库:扫码登录后,把你的网易云歌单批量下载成本地音频文件,播放交给系统播放器。
+**本地优先的网易云第三方播放器**,为手表而做:扫码登录后浏览并播放你的网易云歌单,
+听着不好听的歌可以直接删掉 —— 一次同时干掉本地文件、对应歌单里的它,以及红心。
+同时仍然可以把歌单批量下载成本地文件,离线也能听。
 
 纯本地运行 —— 不依赖任何服务器,不依赖 GMS,不需要存储权限。主要面向 **OPPO Watch 3**(ColorOS Watch 2.1,类 Android 11);普通 APK 侧载,不是 Wear OS 应用,Android 10(`minSdk 29`)及以上设备均可安装,界面按手表小屏适配。
 
@@ -17,7 +19,7 @@
 
 ```bash
 adb devices
-adb install -r watchmusic-1.0-1.apk
+adb install -r watchmusic-2.0-1.apk
 ```
 
 也可以把 APK 传到手表上,用文件管理器点击安装(需允许「安装未知来源应用」)。
@@ -58,7 +60,38 @@ Music/WatchMusic/
 - 文件名格式为 `歌名 - 歌手.ext`,例如 `晴天 - 周杰伦.mp3`
 - mp3 与 flac 会写入歌名、歌手标签,系统播放器或其他播放器扫描本机音乐即可看到
 
-本 App 只负责同步,**不提供播放功能**。
+### 播放
+
+App 自带播放器,不依赖系统播放器:
+
+- **本地优先**:已下载的歌直接播本地文件,飞行模式下也能听。
+- **串流兜底**:没下载过的歌联网取地址边下边播,**不会写进本地库**(不占空间)。
+- 播放页保持极简(只有歌名、歌手、进度与三键),播放模式、随机、队列、删除都在「⋮」的
+  二级菜单里 —— 手表屏幕上每多一个控件,主控键就小一圈。
+- 后台/息屏继续播放,系统媒体通知与蓝牙耳机按键均可控制。
+
+### 删除一首歌
+
+在播放页或曲目行点「⋮」→「删除这首歌」。它会同时:
+
+1. 从你**拥有的**歌单里移除它(收藏来的他人歌单网易云不允许改,面板里会置灰);
+2. **自动取消红心**;
+3. 删除本地文件。
+
+这首歌同时存在于多个歌单时,会先让你勾选删哪些(默认全选自己的)。
+面板上还会提前告诉你:**删完以后还有哪些已勾选的歌单含这首歌** —— 那些歌下一轮同步
+会被重新下载,别删完才发现。
+
+设置里的「删除歌曲时」有三档:
+
+| 档位 | 行为 |
+|---|---|
+| 每次都询问(默认) | 弹面板,自己勾要删哪些歌单 |
+| 全部删除 | 从所有本人歌单移除 + 删本地,**点了就删不弹确认** |
+| 只删本地 | 歌单不动、红心仍会取消,**点了就删不弹确认** |
+
+后两档没有确认框,所以每次删除后会有 **3 秒的撤销条**:点「撤销」把歌单与红心恢复
+(本地文件下次同步自然会下回来)。
 
 ---
 
@@ -67,10 +100,15 @@ Music/WatchMusic/
 | 界面 | 能做什么 |
 |---|---|
 | 登录 | 扫码登录;二维码过期后刷新 |
-| 我的歌单 | 多选歌单、进入设置、点「立即同步」 |
+| 我的歌单 | **点行进入歌单看曲目**;点勾选框决定这个歌单是否纳入同步;进设置;「立即同步」 |
+| 歌单详情 | 曲目列表(已下载 / 在线 / 无版权徽标);点行播放;行尾「⋮」进二级菜单 |
+| 播放页 | 歌名、歌手、进度条、上一首 / 播放暂停 / 下一首;页头「⋮」进二级菜单 |
+| 二级菜单 | 删除这首歌、查看队列、播放模式(顺序 / 列表循环 / 单曲循环)、随机播放 |
+| 播放队列 | 当前队列、当前曲高亮、单曲移除、点击跳播 |
+| 删除面板 | 勾选要从哪些歌单移除、是否只删本地 / 保留本地,并显示实时后果 |
 | 同步预览 | 查看本次新增 / 删除 / 跳过的歌曲与存储占用,确认或放弃 |
 | 同步进度 | 进度、当前曲目、剩余时间;停止同步(可续传) |
-| 设置 | 音质档位、退出登录、进入诊断日志 |
+| 设置 | 下载音质、在线播放音质、删除歌曲时的行为、退出登录、诊断日志 |
 | 诊断日志 | 查看运行日志并一键复制(反馈问题时附上) |
 
 界面按窗口**短边**分三档自适应:Compact(< 300dp)/ Medium(300–360dp)/ Expanded(≥ 360dp),窄屏上会自动收掉非必要信息,把空间让给列表和按钮。
@@ -82,6 +120,8 @@ Music/WatchMusic/
 - **音质与空间**:设置里可选 标准(128 kbps,默认)/ 较高(192)/ 极高(320)/ 无损(FLAC)。标准音质每首约 3.8 MB,三千多首约十几 GB;手表空间有限,选高挡位前先确认。同步开始前会做**存储预检**,空间不够会直接拦截并提示。
 - **耗时**:首次全量同步可能长达数小时。同步跑在前台服务里,息屏也会继续,但系统的省电策略仍可能把它杀掉 —— 建议把本 App 加入电池白名单,长时间同步时保持充电。
 - **跳过**:无版权或需要 VIP 才能取到地址的歌曲会计入「跳过」,不会中断同步。
+- **在线播放音质与下载音质分开设**:磁盘上可以存无损,但手表串流无损基本必卡,所以串流默认「极高(320 kbps)」。
+- **串流不落盘**:在线播放的歌不会写进 `Music/WatchMusic/`,也不占本地索引。
 - **删除**:从歌单里移除、或取消勾选歌单后不再需要的歌曲,会在同步时**删除本地文件**(严格差量);多个歌单共用的歌曲,只在最后一个歌单也移除后才删。
 - **卸载**:卸载 App 不会删除已下载的音频文件(仍留在 `Music/WatchMusic/`),但会清除登录状态与本地索引,重装后需要重新扫码。
 
@@ -158,6 +198,7 @@ keyPassword=你的key密码
 - **构建**:Gradle 9.5.0(wrapper)+ AGP 9.2.0,JDK 25
 - **网络 / 序列化 / 协程**:OkHttp 4.12.0、kotlinx.serialization 1.8.1、kotlinx.coroutines 1.10.2
 - **本地存储**:DataStore 1.1.7(设置与登录凭据)+ framework SQLite 手写三表索引(不引入 Room)
+- **播放**:Media3 1.11.1(`media3-exoplayer` + `media3-session`,不引 `media3-ui`)
 - **其他**:zxing 3.5.3(本地生成登录二维码)、Coil 2.7.0(歌单封面)
 - **依赖注入**:`App.kt` 中手写 ServiceLocator(不引入 Hilt)
 - **无服务器、无 GMS**:接口加密(weapi / eapi)在 Kotlin 侧实现,直连 `music.163.com`
@@ -171,13 +212,22 @@ app/src/main/java/io/github/adkimsm/neteasedownloader/
 ├── crypto/   NcmCrypto.kt                     weapi(AES-CBC + RSA)/ eapi(AES-ECB)
 ├── net/      NcmApi.kt, NcmModels.kt,         接口与响应模型、下载器、cookie 提供者
 │             Downloader.kt, CookieProvider.kt
-├── data/     AppDatabase.kt, Daos.kt,         手写 SQLite 三表(playlist / song /
-│             Entities.kt, MediaStoreWriter.kt, playlist_song)、MediaStore 写入、
-│             CookieStore.kt, SettingsStore.kt 登录凭据与设置
+├── data/     AppDatabase.kt, Daos.kt,         手写 SQLite 四表(playlist / song /
+│             Entities.kt, MediaStoreWriter.kt, playlist_song / liked_song)、
+│             CookieStore.kt, SettingsStore.kt MediaStore 写入、登录凭据与设置
+│             PlaylistCache.kt                 远端↔本地歌单/曲目缓存(同步与浏览共用)
 ├── sync/     SyncEngine.kt, SyncService.kt    差量同步引擎 + 前台服务
+│             DiffPlanner.kt                   待删集合的纯决策
 │             FileNamePolicy.kt                文件名规范化
 │             AudioTagWriter.kt                mp3 / flac 标签写入
-├── ui/       6 个界面 + ViewModel + theme/    尺寸令牌、颜色、字体
+├── player/   PlaybackService.kt               MediaSessionService + ExoPlayer
+│             PlaybackRepository.kt            UI 侧控制入口(MediaController)
+│             LocalFirstResolver.kt            本地优先 / 串流兜底的唯一决策点
+│             PlaybackQueue.kt                 手动切歌的纯语义
+│             QueueStore.kt                    队列与位置快照
+├── library/  SongPresence.kt / RemovePlan.kt  删除范围与后果预览(纯函数)
+│             SongRemover.kt / RemoveReport.kt 远端删除 + 红心 + 本地删除 + 撤销
+├── ui/       11 个界面 + ViewModel + theme/   尺寸令牌、颜色、字体
 └── diag/     Diag.kt                          环形内存日志 + 文件日志(崩溃自动落盘)
 ```
 
@@ -204,13 +254,20 @@ app/src/main/java/io/github/adkimsm/neteasedownloader/
 | 轮询登录状态 | `POST /weapi/login/qrcode/client/login` | 800 过期 / 801 待扫 / 802 已扫待确认 / 803 成功 |
 | 我的歌单 | `POST /api/user/playlist` | 带 cookie |
 | 歌单详情 | `POST /api/v6/playlist/detail` | `{id, n:100000, s:8}`,一次取全量曲目 |
-| 歌曲下载地址 | `POST /api/song/enhance/player/url/v1` | eapi,批量取;取不到地址记 `MISSING_URL` |
+| 歌曲下载地址 / 串流地址 | `POST /api/song/enhance/player/url/v1` | eapi,批量取;取不到地址记 `MISSING_URL` |
+| 我喜欢(红心)id 列表 | `POST /weapi/song/like/get` | weapi |
+| 红心 / 取消红心 | `POST /weapi/radio/like` | weapi |
+| 歌单内加曲 / 删曲 | `POST /weapi/playlist/track/add` · `/track/delete` | weapi,`tracks` 是 JSON 字符串 |
+| 新建 / 删除 / 重命名歌单 | `POST /weapi/playlist/create` · `/remove` · `/batch` | weapi |
+
+写操作一律走 weapi(参考实现的选择):eapi 对部分写端点不可用,而且写失败常常是
+**静默的**(返回 200 却不生效),所以每次删除后都会读回歌单确认。
 
 ---
 
 ## 测试与 CI
 
-单元测试共 **93 个**,覆盖加密(weapi / eapi)、接口解析与下载地址规整、文件名策略、音频标签读写、ETA 与字节格式化、窗口尺寸档位、Cookie 持久化:
+单元测试共 **212 个**,覆盖加密(weapi / eapi)、写请求体构造(含歌名里的引号 / 反斜杠 / emoji)、接口解析与下载地址规整、文件名策略、音频标签读写、ETA 与字节格式化、窗口尺寸档位、Cookie 持久化,以及 2.0 新增的播放传输策略、本地优先解析、播放快照恢复、路由与返回栈、同步差量、删除范围与撤销:
 
 ```bash
 ./gradlew :app:testDebugUnitTest

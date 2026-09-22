@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">网易云音乐同步</string>
+    <string name="app_name">网易云音乐手表版</string>
 
     <!-- ==================== 播放 ==================== -->
     <string name="playback_channel_name">正在播放</string>
