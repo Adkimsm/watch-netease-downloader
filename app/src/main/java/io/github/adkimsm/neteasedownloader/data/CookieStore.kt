@@ -103,10 +103,8 @@ class CookieStore(
 
     fun isLoggedIn(): Boolean = musicU.isNotEmpty()
 
-    override fun csrfToken(): String = csrf
-
-    override fun cookieHeader(): String =
-        listOf(
+    override fun deviceHeader(): Map<String, String> =
+        linkedMapOf(
             "osver" to "16.2",
             "deviceId" to deviceId,
             "os" to "iPhone OS",
@@ -119,7 +117,10 @@ class CookieStore(
             "channel" to "distribution",
             "requestId" to "${System.currentTimeMillis()}_${secureRandom.nextInt(1000)}",
             "MUSIC_U" to musicU,
-        ).joinToString("; ") { (k, v) -> "$k=$v" }
+        )
+
+    override fun cookieHeader(): String =
+        deviceHeader().entries.joinToString("; ") { (k, v) -> "$k=$v" }
 
     private fun randomDeviceId(): String {
         val bytes = ByteArray(16)

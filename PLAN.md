@@ -366,3 +366,15 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   它一度由调用方先过滤,单测立刻就挂了 —— 不变量放在校验不到的地方迟早会被漏掉。
 - **"点了就删"必须配撤销**:去掉确认框之后,误触的成本全压在撤销条上。撤销条只恢复
   **确实改动过**的部分(失败的歌单本来就没动,再 add 一遍会重复)。
+- **weapi 通道 2026-09 起整体失效(空 200)**:`music.163.com/weapi/*` 对全部端点
+  返回 HTTP 200 + 空 body —— 没有错误码、没有 JSON,`code` 字段回退成 httpCode 后
+  看起来像"成功",实际什么都没发生。表现:**红心列表拉取抛 JsonDecodingException
+  (JSON input 为空)、删除/加歌/红心/建删改名歌单全部静默不生效**(写后读回不一致)。
+  实测 eapi 通道(`interface.music.163.com/eapi/*`)一切正常,于是远端写操作整体从
+  weapi 迁到 eapi(参考实现 4.32.0 里红心列表 likelist.js、`/api/batch` 本就默认
+  eapi;加/删曲参考 playlist_tracks.js 走 `/api/playlist/manipulate/tracks`)。
+- **eapi 写端点要把设备 header 内嵌进 payload**:参考实现 `data.header = header`
+  (与 Cookie 头同源,含 osver/deviceId/os/appver/__csrf/.../MUSIC_U)。读端点不要求,
+  写端点照抄最稳。
+- **`playlist/manipulate/tracks` 有 code=512 怪癖**:新歌单/操作频繁时服务端回 512,
+  参考实现的重试是"trackIds 翻倍再发一次"(ids 原样重复一遍,服务端会去重)。

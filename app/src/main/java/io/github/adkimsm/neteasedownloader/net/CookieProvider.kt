@@ -1,17 +1,17 @@
 package io.github.adkimsm.neteasedownloader.net
 
 /**
- * 提供请求 Cookie 头与 csrf。
+ * 提供请求 Cookie 头与设备 header(供 eapi 写请求内嵌 payload)。
  *
- * `csrfToken` 带默认实现,所以它**不是**抽象成员 —— 这个接口仍然是 `fun interface`,
+ * 两个成员都带默认实现,所以它们**不是**抽象成员 —— 这个接口仍然是 `fun interface`,
  * 测试里的 `CookieProvider { "" }` 写法照旧可用。
  */
 fun interface CookieProvider {
     fun cookieHeader(): String
 
     /**
-     * weapi 的请求体里要带 `csrf_token`(eapi 只把它放在 Cookie 头里,所以此前用不到)。
-     * 未登录或测试替身返回空串即可。
+     * eapi 写端点按参考实现要在 payload 里内嵌设备 header(与 Cookie 头同源)。
+     * 未登录或测试替身返回空 map 即可。
      */
-    fun csrfToken(): String = ""
+    fun deviceHeader(): Map<String, String> = emptyMap()
 }

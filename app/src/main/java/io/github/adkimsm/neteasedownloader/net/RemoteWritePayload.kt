@@ -1,7 +1,6 @@
 package io.github.adkimsm.neteasedownloader.net
 
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
@@ -10,11 +9,16 @@ import kotlinx.serialization.json.put
  * 远端写操作的请求体构造(纯函数,可单测)。
  *
  * 网易云这几个写接口有个共同的坑:**要把一段 JSON 当成字符串再塞进 JSON**。
- * `tracks` 的值是 `"[{\"type\":3,\"id\":456}]"`,`/api/batch` 的值更是内嵌一整段
- * 带歌名的 JSON。手工拼字符串时,歌名里的引号、反斜杠、换行会把请求体彻底写坏 ——
- * 所以这里一律走 kotlinx.serialization 生成,不做字符串拼接。
+ * `/api/playlist/manipulate/tracks` 的 `trackIds` 值是 `"[\"186016\",\"123\"]"`,
+ * `/api/batch` 的值更是内嵌一整段带歌名的 JSON。手工拼字符串时,歌名里的引号、
+ * 反斜杠、换行会把请求体彻底写坏 —— 所以这里一律走 kotlinx.serialization 生成,
+ * 不做字符串拼接。
  *
  * 端点与取值对照 NeteaseCloudMusicApi 4.32.0 的 module 实现。
+ * **通道说明**:这些端点目前一律走 eapi(实测 weapi 通道 2026-09 起对全部端点
+ * 返回 HTTP 200 空 body,静默失败;eapi 通道正常)。红心列表(likelist.js)与
+ * `/api/batch` 在参考实现里本就默认 eapi;加/删曲参考 playlist_tracks.js 走
+ * `/api/playlist/manipulate/tracks`。
  */
 object RemoteWritePayload {
 
@@ -23,20 +27,22 @@ object RemoteWritePayload {
         NcmJson.encodeToString(kotlinx.serialization.serializer<String>(), value)
 
     /**
-     * 歌单曲目增删共用体:`/api/playlist/track/add` 与 `/api/playlist/track/delete`。
+     * 歌单加/删曲共用体:`/api/playlist/manipulate/tracks`(参考 playlist_tracks.js)。
      *
      * ```json
-     * {"id":123,"tracks":"[{\"type\":3,\"id\":456}]"}
+     * {"op":"del","pid":123,"trackIds":"[\"186016\",\"123\"]","imme":"true"}
      * ```
+     *
+     * 注意 `trackIds` 是**字符串 id 的 JSON 字符串**(不是对象数组),`imme` 也是字符串。
      */
-    fun playlistTrackOp(playlistId: Long, songIds: List<Long>): String {
-        // 同上:手工给 separator,别让默认的 ", " 混进 JSON
-        val refs = songIds.joinToString(separator = ",", prefix = "[", postfix = "]") {
-            """{"type":3,"id":$it}"""
-        }
+    fun manipulateTracks(op: String, playlistId: Long, songIds: List<Long>): String {
+        // 手工给 separator,别让默认的 ", " 混进 JSON
+        val ids = songIds.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"$it\"" }
         return buildJsonObject {
-            put("id", playlistId)
-            put("tracks", refs)
+            put("op", op)
+            put("pid", playlistId)
+            put("trackIds", ids)
+            put("imme", "true")
         }.toString()
     }
 
@@ -79,14 +85,17 @@ object RemoteWritePayload {
     fun likedIds(uid: Long): String = buildJsonObject { put("uid", uid) }.toString()
 
     /**
-     * weapi 要求把 `__csrf` 同时放进请求体(不像 eapi 只放在 Cookie 头里)。
-     * 已有该字段时按传入值覆盖,避免出现两个 csrf_token。
+     * eapi 写端点按参考实现把设备 header 内嵌进 payload(与 Cookie 头同源)。
+     * 已有该字段时按传入值覆盖。
      */
-    fun withCsrfToken(payloadJson: String, csrf: String): String {
+    fun withDeviceHeader(payloadJson: String, header: Map<String, String>): String {
+        if (header.isEmpty()) return payloadJson
         val obj = runCatching { NcmJson.parseToJsonElement(payloadJson).jsonObject }.getOrNull()
             ?: return payloadJson
-        return JsonObject(obj.toMutableMap().apply { put("csrf_token", JsonPrimitive(csrf)) }).toString()
+        val headerObj = buildJsonObject {
+            header.forEach { (k, v) -> put(k, v) }
+        }
+        return JsonObject(obj.toMutableMap().apply { put("header", headerObj) }).toString()
     }
-
     const val BATCH_RENAME_PATH = "/api/playlist/update/name"
 }

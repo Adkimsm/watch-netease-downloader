@@ -250,24 +250,25 @@ app/src/main/java/io/github/adkimsm/neteasedownloader/
 
 | 用途 | 端点 | 说明 |
 |---|---|---|
-| 取登录 key | `POST /weapi/login/qrcode/unikey` | `{type:1}` |
-| 轮询登录状态 | `POST /weapi/login/qrcode/client/login` | 800 过期 / 801 待扫 / 802 已扫待确认 / 803 成功 |
+| 取登录 key | `POST /api/login/qrcode/unikey` | eapi,`{type:1}` |
+| 轮询登录状态 | `POST /api/login/qrcode/client/login` | eapi;800 过期 / 801 待扫 / 802 已扫待确认 / 803 成功 |
 | 我的歌单 | `POST /api/user/playlist` | 带 cookie |
 | 歌单详情 | `POST /api/v6/playlist/detail` | `{id, n:100000, s:8}`,一次取全量曲目 |
 | 歌曲下载地址 / 串流地址 | `POST /api/song/enhance/player/url/v1` | eapi,批量取;取不到地址记 `MISSING_URL` |
-| 我喜欢(红心)id 列表 | `POST /weapi/song/like/get` | weapi |
-| 红心 / 取消红心 | `POST /weapi/radio/like` | weapi |
-| 歌单内加曲 / 删曲 | `POST /weapi/playlist/track/add` · `/track/delete` | weapi,`tracks` 是 JSON 字符串 |
-| 新建 / 删除 / 重命名歌单 | `POST /weapi/playlist/create` · `/remove` · `/batch` | weapi |
+| 我喜欢(红心)id 列表 | `POST /api/song/like/get` | eapi |
+| 红心 / 取消红心 | `POST /api/radio/like` | eapi |
+| 歌单内加曲 / 删曲 | `POST /api/playlist/manipulate/tracks` | eapi,`{op, pid, trackIds, imme}` |
+| 新建 / 删除 / 重命名歌单 | `POST /api/playlist/create` · `/remove` · `/batch` | eapi |
 
-写操作一律走 weapi(参考实现的选择):eapi 对部分写端点不可用,而且写失败常常是
-**静默的**(返回 200 却不生效),所以每次删除后都会读回歌单确认。
+远端写操作(歌单管理 / 红心 / 红心列表)走 eapi(参考实现 4.32.0 的选择;2026-09 实测
+weapi 通道对全部端点返回 HTTP 200 空 body,已弃用)。写失败常常是**静默的**(返回
+200 却不生效),所以每次删除后都会读回歌单确认。
 
 ---
 
 ## 测试与 CI
 
-单元测试共 **212 个**,覆盖加密(weapi / eapi)、写请求体构造(含歌名里的引号 / 反斜杠 / emoji)、接口解析与下载地址规整、文件名策略、音频标签读写、ETA 与字节格式化、窗口尺寸档位、Cookie 持久化,以及 2.0 新增的播放传输策略、本地优先解析、播放快照恢复、路由与返回栈、同步差量、删除范围与撤销:
+单元测试共 **226 个**(1 个需真实账号的 live 用例按设计跳过),覆盖加密(weapi / eapi)、写请求体构造(含歌名里的引号 / 反斜杠 / emoji)、eapi 通道匿名冒烟(拦空 body 回归)、接口解析与下载地址规整、文件名策略、音频标签读写、ETA 与字节格式化、窗口尺寸档位、Cookie 持久化,以及 2.0 新增的播放传输策略、本地优先解析、播放快照恢复、路由与返回栈、同步差量、删除范围与撤销:
 
 ```bash
 ./gradlew :app:testDebugUnitTest

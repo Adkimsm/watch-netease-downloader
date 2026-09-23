@@ -23,6 +23,14 @@ class NcmResponse(
     val setCookies: List<String>,
 ) {
     val body: JsonObject? = runCatching { NcmJson.parseToJsonElement(rawBody).jsonObject }.getOrNull()
+        ?: run {
+            if (rawBody.isEmpty()) {
+                Diag.w("NcmApi", "响应为空(HTTP $httpCode 空 body)")
+            } else {
+                Diag.w("NcmApi", "响应非JSON,len=${rawBody.length},前120字=${rawBody.take(120)}")
+            }
+            null
+        }
 
     /** 业务状态码,取自响应体 code,缺失时退回 httpCode */
     val code: Int
@@ -36,6 +44,9 @@ class NcmResponse(
  *  - URL: https://interface.music.163.com/eapi/<去掉 /api/ 前缀的 uri>
  *  - 表单仅含 params(hex)
  *  - Cookie 头按客户端样式构造(osver/deviceId/os/appver/__csrf/MUSIC_U...)
+ *
+ * 读操作与远端写操作(歌单管理/红心)一律走 eapi:2026-09 实测 weapi 通道
+ * (music.163.com/weapi 路径)对全部端点返回 HTTP 200 空 body,静默失败。
  */
 class NcmApi(private val cookieProvider: CookieProvider) {
     private val client = OkHttpClient.Builder()
@@ -84,57 +95,6 @@ class NcmApi(private val cookieProvider: CookieProvider) {
                 throw e
             }
         }
-
-    /**
-     * weapi 调用。
-     *
-     * 与 eapi 的差别:URL 走 music.163.com、表单多一个 encSecKey、
-     * 请求体里要带 csrf_token,并且必须带 Referer。
-     */
-    suspend fun weapiRaw(uri: String, payloadJson: String): NcmResponse =
-        withContext(Dispatchers.IO) {
-            val withCsrf = RemoteWritePayload.withCsrfToken(payloadJson, cookieProvider.csrfToken())
-            val form = NcmCrypto.weapi(withCsrf)
-            val shortUri = uri.removePrefix("/api/")
-            val request = Request.Builder()
-                .url("$WEB_DOMAIN/weapi/$shortUri")
-                .post(
-                    FormBody.Builder()
-                        .add("params", form.params)
-                        .add("encSecKey", form.encSecKey)
-                        .build(),
-                )
-                .header("Cookie", cookieProvider.cookieHeader())
-                .header("Referer", WEB_DOMAIN)
-                .header("User-Agent", WEB_UA)
-                .build()
-            val start = System.nanoTime()
-            try {
-                client.newCall(request).execute().use { resp ->
-                    val rawBody = resp.body?.string().orEmpty()
-                    if (!resp.isSuccessful) {
-                        throw NcmApiException("HTTP ${resp.code}: ${rawBody.take(200)}")
-                    }
-                    val result = NcmResponse(resp.code, rawBody, resp.headers("Set-Cookie"))
-                    Diag.i(
-                        "NcmApi",
-                        "weapi $shortUri -> http=${resp.code} code=${result.code} " +
-                            "耗时=${(System.nanoTime() - start) / 1_000_000}ms",
-                    )
-                    result
-                }
-            } catch (e: Exception) {
-                Diag.w(
-                    "NcmApi",
-                    "weapi $shortUri 异常: ${e.message} " +
-                        "耗时=${(System.nanoTime() - start) / 1_000_000}ms",
-                )
-                throw e
-            }
-        }
-
-    suspend inline fun <reified Req> weapi(uri: String, req: Req): NcmResponse =
-        weapiRaw(uri, NcmJson.encodeToString(req))
 
     /** 扫码登录:申请 unikey */
     suspend fun createQrcodeUnikey(): String {
@@ -206,19 +166,26 @@ class NcmApi(private val cookieProvider: CookieProvider) {
     }
 
     // ---------- 远端写操作(歌单管理与红心) ----------
-    // 这组端点在参考实现里一律走 weapi:eapi 对其中的写操作并非全部可用,
-    // 而且写失败常常是静默的(返回 200 却不生效),照抄参考实现最稳。
+    // 这组端点照参考实现 4.32.0 走 eapi:红心列表(likelist.js)与 /api/batch 本就
+    // 默认 eapi;加/删曲参考 playlist_tracks.js 走 /api/playlist/manipulate/tracks。
+    // 不要切回 weapi:2026-09 实测 music.163.com/weapi/* 对全部端点返回 HTTP 200
+    // 空 body(静默失败,日志表现为 code=200 却不生效),eapi 通道正常。
 
-    /** 我的红心歌曲 id 列表 */
+    /** eapi 写调用:按参考实现把设备 header 内嵌进 payload(与 Cookie 头同源) */
+    private suspend fun eapiWriteRaw(uri: String, payloadJson: String): NcmResponse =
+        eapiRaw(uri, RemoteWritePayload.withDeviceHeader(payloadJson, cookieProvider.deviceHeader()))
+
+    /** 我的红心歌曲 id 列表(eapi,参考 likelist.js) */
     suspend fun fetchLikedSongIds(uid: Long): List<Long> {
-        val resp = weapiRaw("/api/song/like/get", RemoteWritePayload.likedIds(uid))
+        val resp = eapiWriteRaw("/api/song/like/get", RemoteWritePayload.likedIds(uid))
         if (resp.code != 200) throw NcmApiException("红心列表返回 ${resp.code}")
+        if (resp.body == null) throw NcmApiException("红心列表响应为空(HTTP 200 空 body)")
         return resp.decode<LikedIdsResp>().ids
     }
 
     /** 新建歌单,返回新歌单 id */
     suspend fun createPlaylist(name: String): Long {
-        val resp = weapiRaw("/api/playlist/create", RemoteWritePayload.playlistCreate(name))
+        val resp = eapiWriteRaw("/api/playlist/create", RemoteWritePayload.playlistCreate(name))
         if (resp.code != 200) throw NcmApiException("新建歌单返回 ${resp.code}")
         val body = resp.body ?: throw NcmApiException("新建歌单响应为空")
         return body["id"]?.jsonPrimitive?.longOrNull
@@ -229,42 +196,50 @@ class NcmApi(private val cookieProvider: CookieProvider) {
     /** 删除歌单(只能删自己的) */
     suspend fun removePlaylists(ids: List<Long>) {
         if (ids.isEmpty()) return
-        val resp = weapiRaw("/api/playlist/remove", RemoteWritePayload.playlistRemove(ids))
+        val resp = eapiWriteRaw("/api/playlist/remove", RemoteWritePayload.playlistRemove(ids))
         if (resp.code != 200) throw NcmApiException("删除歌单返回 ${resp.code}")
     }
 
     /** 重命名歌单(仅本人歌单可用) */
     suspend fun renamePlaylist(playlistId: Long, name: String) {
-        val resp = weapiRaw("/api/batch", RemoteWritePayload.batchRename(playlistId, name))
+        val resp = eapiWriteRaw("/api/batch", RemoteWritePayload.batchRename(playlistId, name))
         if (resp.code != 200) throw NcmApiException("重命名歌单返回 ${resp.code}")
+    }
+
+    /** 歌单加/删曲:eapi manipulate/tracks,按参考实现处理 code=512 重试 */
+    private suspend fun manipulateTracks(op: String, playlistId: Long, songIds: List<Long>) {
+        if (songIds.isEmpty()) return
+        val resp = eapiWriteRaw(
+            "/api/playlist/manipulate/tracks",
+            RemoteWritePayload.manipulateTracks(op, playlistId, songIds),
+        )
+        if (resp.code == 512) {
+            // 新歌单/操作频繁时服务端返回 512:重试一次且 trackIds 翻倍(参考实现怪癖)
+            val retry = eapiWriteRaw(
+                "/api/playlist/manipulate/tracks",
+                RemoteWritePayload.manipulateTracks(op, playlistId, songIds + songIds),
+            )
+            if (retry.code != 200) throw NcmApiException("歌单操作返回 ${retry.code}")
+            return
+        }
+        if (resp.code != 200) throw NcmApiException("歌单操作返回 ${resp.code}")
     }
 
     /** 把歌曲加入歌单 */
     suspend fun addTracksToPlaylist(playlistId: Long, songIds: List<Long>) {
-        if (songIds.isEmpty()) return
-        val resp = weapiRaw(
-            "/api/playlist/track/add",
-            RemoteWritePayload.playlistTrackOp(playlistId, songIds),
-        )
-        if (resp.code != 200) throw NcmApiException("加入歌单返回 ${resp.code}")
+        manipulateTracks("add", playlistId, songIds)
     }
 
     /** 从歌单移除歌曲(仅本人歌单可用) */
     suspend fun removeTracksFromPlaylist(playlistId: Long, songIds: List<Long>) {
-        if (songIds.isEmpty()) return
-        val resp = weapiRaw(
-            "/api/playlist/track/delete",
-            RemoteWritePayload.playlistTrackOp(playlistId, songIds),
-        )
-        if (resp.code != 200) throw NcmApiException("从歌单移除返回 ${resp.code}")
+        manipulateTracks("del", playlistId, songIds)
     }
 
     /** 红心 / 取消红心 */
     suspend fun setLiked(songId: Long, liked: Boolean) {
-        val resp = weapiRaw("/api/radio/like", RemoteWritePayload.like(songId, liked))
+        val resp = eapiWriteRaw("/api/radio/like", RemoteWritePayload.like(songId, liked))
         if (resp.code != 200) throw NcmApiException("红心操作返回 ${resp.code}")
     }
-
     companion object {
         private const val API_DOMAIN = "https://interface.music.163.com"
         private const val IPHONE_UA =
@@ -272,10 +247,5 @@ class NcmApi(private val cookieProvider: CookieProvider) {
         private const val BATCH_SONG_DETAIL = 500
         private const val BATCH_SONG_URL = 50
 
-        /** weapi 走主站域名;必须带 Referer,否则服务端会拒 */
-        private const val WEB_DOMAIN = "https://music.163.com"
-        private const val WEB_UA =
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0"
     }
 }

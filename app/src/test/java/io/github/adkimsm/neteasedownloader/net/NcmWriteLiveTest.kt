@@ -7,7 +7,10 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * weapi **写端点**的全链路 live 验证。
+ * eapi **写端点**的全链路 live 验证。
+ *
+ * 2026-09 起远端写操作从 weapi 迁到 eapi(weapi 对全部端点返回 HTTP 200 空 body,
+ * 静默失败),本测试就是这次迁移的**验收闸门**:下面的每一步都真实打到网易云并读回确认。
  *
  * 这三件事(建歌单 / 加歌删歌 / 红心)每天都在生产里跑,但之前只能靠
  * 「写后读回」兜底 —— 因为它们读不到你的账号就跑不了。这个测试把整条链
@@ -34,6 +37,25 @@ class NcmWriteLiveTest {
     private val loggedIn: Boolean get() = !musicU.isNullOrEmpty() && uid != null && uid!! > 0L
 
     private val api = NcmApi(object : CookieProvider {
+        override fun deviceHeader(): Map<String, String> = if (loggedIn) {
+            mapOf(
+                "osver" to "16.2",
+                "deviceId" to "live-test-device",
+                "os" to "iPhone OS",
+                "appver" to "9.0.90",
+                "versioncode" to "140",
+                "mobilename" to "",
+                "buildver" to "0",
+                "resolution" to "1920x1080",
+                "__csrf" to "",
+                "channel" to "distribution",
+                "requestId" to "${System.currentTimeMillis()}_1",
+                "MUSIC_U" to musicU!!,
+            )
+        } else {
+            emptyMap()
+        }
+
         override fun cookieHeader(): String = if (loggedIn) {
             listOf(
                 "osver" to "16.2",

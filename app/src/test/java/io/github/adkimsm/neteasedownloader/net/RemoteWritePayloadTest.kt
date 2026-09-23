@@ -1,18 +1,21 @@
 package io.github.adkimsm.neteasedownloader.net
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * 远端写操作的请求体构造。
  *
- * 重点全在**转义**:`tracks` 与 `/api/batch` 都把 JSON 当字符串再嵌进 JSON,
- * 歌名里只要出现一个引号或反斜杠,手工拼字符串就会把整个请求体写坏 ——
- * 而且服务端多半只是静默返回 200,不报错。所以这些用例用真实的刁钻歌名做输入。
+ * 重点全在**转义**:`manipulate/tracks` 的 `trackIds` 与 `/api/batch` 都把 JSON
+ * 当字符串再嵌进 JSON,歌名里只要出现一个引号或反斜杠,手工拼字符串就会把整个
+ * 请求体写坏 —— 而且服务端多半只是静默返回 200,不报错。
+ * 所以这些用例用真实的刁钻歌名做输入。
  */
 class RemoteWritePayloadTest {
 
@@ -20,17 +23,20 @@ class RemoteWritePayloadTest {
         NcmJson.parseToJsonElement(json) as JsonObject
 
     @Test
-    fun playlistTrackOp_wrapsRefsAsJsonString() {
-        val body = parse(RemoteWritePayload.playlistTrackOp(123L, listOf(456L)))
-        assertEquals(123L, body["id"]?.jsonPrimitive?.content?.toLong())
-        // tracks 的值必须是一个**字符串**,内容是 JSON 数组
-        assertEquals("""[{"type":3,"id":456}]""", body["tracks"]?.jsonPrimitive?.content)
+    fun manipulateTracks_carriesOpPidAndStringIds() {
+        val body = parse(RemoteWritePayload.manipulateTracks("del", 123L, listOf(456L)))
+        assertEquals("del", body["op"]?.jsonPrimitive?.content)
+        assertEquals(123L, body["pid"]?.jsonPrimitive?.content?.toLong())
+        // trackIds 的值必须是**字符串 id 的 JSON 字符串**(参考 playlist_tracks.js)
+        assertEquals("""["456"]""", body["trackIds"]?.jsonPrimitive?.content)
     }
 
     @Test
-    fun playlistTrackOp_supportsMultipleSongs() {
-        val body = parse(RemoteWritePayload.playlistTrackOp(1L, listOf(10L, 20L, 30L)))
-        assertEquals("""[{"type":3,"id":10},{"type":3,"id":20},{"type":3,"id":30}]""", body["tracks"]?.jsonPrimitive?.content)
+    fun manipulateTracks_supportsMultipleSongs() {
+        val body = parse(RemoteWritePayload.manipulateTracks("add", 1L, listOf(10L, 20L, 30L)))
+        assertEquals("add", body["op"]?.jsonPrimitive?.content)
+        assertEquals("""["10","20","30"]""", body["trackIds"]?.jsonPrimitive?.content)
+        assertEquals("true", body["imme"]?.jsonPrimitive?.content)
     }
 
     @Test
@@ -107,29 +113,34 @@ class RemoteWritePayloadTest {
     }
 
     @Test
-    fun withCsrfToken_addsField() {
-        val out = parse(RemoteWritePayload.withCsrfToken("""{"id":1}""", "csrf-abc"))
-        assertEquals("csrf-abc", out["csrf_token"]?.jsonPrimitive?.content)
+    fun withDeviceHeader_addsHeaderObject() {
+        val out = parse(
+            RemoteWritePayload.withDeviceHeader("""{"id":1}""", mapOf("os" to "iPhone OS", "appver" to "9.0.90")),
+        )
+        val header = out["header"]?.jsonObject
+        assertNotNull(header)
+        assertEquals("iPhone OS", header?.get("os")?.jsonPrimitive?.content)
+        assertEquals("9.0.90", header?.get("appver")?.jsonPrimitive?.content)
         assertEquals("1", out["id"]?.jsonPrimitive?.content)
     }
 
     @Test
-    fun withCsrfToken_overwritesExistingField() {
-        val out = parse(RemoteWritePayload.withCsrfToken("""{"csrf_token":"old","id":1}""", "new"))
-        assertEquals("new", out["csrf_token"]?.jsonPrimitive?.content)
+    fun withDeviceHeader_overwritesExistingHeader() {
+        val out = parse(
+            RemoteWritePayload.withDeviceHeader("""{"header":{"os":"old"},"id":1}""", mapOf("os" to "new")),
+        )
+        assertEquals("new", out["header"]?.jsonObject?.get("os")?.jsonPrimitive?.content)
         assertEquals(2, out.size)
     }
 
     @Test
-    fun withCsrfToken_leavesNonObjectPayloadUntouched() {
-        assertEquals("not-json", RemoteWritePayload.withCsrfToken("not-json", "csrf"))
+    fun withDeviceHeader_leavesNonObjectPayloadUntouched() {
+        assertEquals("not-json", RemoteWritePayload.withDeviceHeader("not-json", mapOf("os" to "x")))
     }
 
     @Test
-    fun withCsrfToken_emptyCsrfStillAddsField() {
-        // 未登录时也不能省这个字段:省了服务端直接 401,报错更难定位
-        val out = parse(RemoteWritePayload.withCsrfToken("""{"id":1}""", ""))
-        assertFalse(out.isEmpty())
-        assertEquals("", out["csrf_token"]?.jsonPrimitive?.content)
+    fun withDeviceHeader_emptyHeaderAddsNothing() {
+        val out = parse(RemoteWritePayload.withDeviceHeader("""{"id":1}""", emptyMap()))
+        assertFalse(out.containsKey("header"))
     }
 }
