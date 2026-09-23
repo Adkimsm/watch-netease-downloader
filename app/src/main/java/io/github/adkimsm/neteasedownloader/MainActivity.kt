@@ -179,6 +179,7 @@ private fun AppNavigation() {
                         onBack = mainViewModel::pop,
                         onLogout = mainViewModel::logout,
                         onDiagnostics = mainViewModel::openDiagnostics,
+                        onSyncClick = mainViewModel::startSync,
                         loggingOut = actionInFlight == MainViewModel.ACTION_LOGOUT,
                         levelJustChanged = levelChanged,
                         playlistCount = playlists.size,
@@ -417,6 +418,12 @@ private fun AppNavigation() {
                 isPlaying = playerState.isPlaying,
                 onClick = mainViewModel::openNowPlaying,
                 onTogglePlayPause = playerViewModel::togglePlayPause,
+                // 有已知时长才显示进度线;未知时长(加载中/损坏)不画
+                progressFraction = if (playerState.durationMs > 0L) {
+                    (playerState.positionMs.toFloat() / playerState.durationMs).coerceIn(0f, 1f)
+                } else {
+                    null
+                },
                 modifier = Modifier.padding(
                     start = sizing.screenPadding,
                     end = sizing.screenPadding,
