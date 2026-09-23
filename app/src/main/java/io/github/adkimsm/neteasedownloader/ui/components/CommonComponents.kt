@@ -318,6 +318,19 @@ fun StateBadge(
     }
 }
 
+/**
+ * 分组标题:设置页等纵向分组的统一小标题。
+ */
+@Composable
+fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = TextSecondary,
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
 /** 可内联错误条:承载 syncEngine 的失败原因(原实现里 progress.message 无处显示) */
 @Composable
 fun ErrorBanner(

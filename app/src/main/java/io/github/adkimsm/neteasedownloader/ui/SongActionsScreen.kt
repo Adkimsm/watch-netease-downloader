@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Favorite
@@ -115,6 +116,7 @@ fun SongActionsScreen(
                 label = stringResource(R.string.actions_add_to_playlist),
                 trailing = null,
                 onClick = onAddToPlaylist,
+                chevron = true,
             )
 
             Spacer(Modifier.size(sizing.gapSm))
@@ -127,6 +129,7 @@ fun SongActionsScreen(
                     label = stringResource(R.string.actions_queue),
                     trailing = null,
                     onClick = onOpenQueue,
+                    chevron = true,
                 )
                 Spacer(Modifier.size(sizing.gapSm / 2))
                 ActionRow(
@@ -165,7 +168,7 @@ private fun repeatLabel(repeat: Repeat): String = stringResource(
     },
 )
 
-/** 菜单行:图标 + 文案 + 右侧当前值。行高取档位令牌,保证 Compact 档也够点。 */
+/** 菜单行:图标 + 文案 + 右侧当前值/导航箭头。行高取档位令牌,保证 Compact 档也够点。 */
 @Composable
 internal fun ActionRow(
     icon: ImageVector,
@@ -174,6 +177,7 @@ internal fun ActionRow(
     onClick: () -> Unit,
     destructive: Boolean = false,
     subtitle: String? = null,
+    chevron: Boolean = false,
 ) {
     val sizing = LocalWindowSizing.current
     val contentColor: Color = if (destructive) StateError else TextPrimary
@@ -219,6 +223,14 @@ internal fun ActionRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary,
                 maxLines = 1,
+            )
+        } else if (chevron) {
+            Spacer(Modifier.width(Spacing.xs))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = TextDisabled,
+                modifier = Modifier.size(sizing.iconSize),
             )
         }
     }

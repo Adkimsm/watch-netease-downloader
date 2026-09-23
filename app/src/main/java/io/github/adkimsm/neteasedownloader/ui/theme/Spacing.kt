@@ -49,4 +49,7 @@ object Dimens {
      */
     val DiagnosticsMono = 10.sp
     val DiagnosticsMonoLineHeight = 13.sp
+
+    /** mini 播放条底部的进度线高度(纯装饰,不随窗口档位缩放) */
+    val MiniProgressLine = 2.dp
 }

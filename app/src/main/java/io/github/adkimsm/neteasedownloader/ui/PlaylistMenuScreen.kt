@@ -66,6 +66,7 @@ fun PlaylistMenuScreen(
                 label = stringResource(R.string.playlist_rename),
                 trailing = null,
                 onClick = onRename,
+                chevron = true,
             )
             Spacer(Modifier.size(sizing.gapSm / 2))
             ActionRow(
