@@ -110,13 +110,10 @@
     <string name="playlist_title">我的歌单</string>
     <string name="playlist_settings">设置</string>
     <string name="playlist_empty_title">还没有歌单</string>
-    <string name="playlist_empty_hint">先点下方「立即同步」拉取</string>
+    <string name="playlist_empty_hint">点右上角同步图标拉取</string>
     <string name="playlist_loading">正在拉取歌单…</string>
     <string name="playlist_track_count">%1$d 首</string>
-    <string name="playlist_selected_count">已选 %1$d 个歌单</string>
-    <string name="playlist_selected_none">尚未勾选任何歌单</string>
     <string name="playlist_sync_now">立即同步</string>
-    <string name="playlist_syncing">正在同步…</string>
 
     <!-- ==================== 同步预览 ==================== -->
     <string name="preview_title">同步预览</string>
@@ -151,7 +148,11 @@
     <string name="progress_eta_label">剩余 %1$s</string>
     <!-- ==================== 设置 ==================== -->
     <string name="settings_title">设置</string>
-    <string name="settings_quality">音质</string>
+    <string name="settings_section_play">播放</string>
+    <string name="settings_section_manage">管理</string>
+    <string name="settings_section_sync">同步</string>
+    <string name="settings_section_general">通用</string>
+    <string name="settings_quality_download">下载音质</string>
     <string name="settings_quality_standard">标准</string>
     <string name="settings_quality_standard_desc">128 kbps</string>
     <string name="settings_quality_higher">较高</string>
@@ -164,6 +165,7 @@
     <string name="settings_logout_title">退出登录?</string>
     <string name="settings_logout_message">退出后需要重新扫码登录。</string>
     <string name="settings_diagnostics">诊断日志</string>
+    <string name="settings_sync_now">立即同步</string>
     <string name="settings_version">版本 %1$s</string>
     <string name="settings_synced_playlists">已勾选 %1$d / %2$d 个歌单</string>
 

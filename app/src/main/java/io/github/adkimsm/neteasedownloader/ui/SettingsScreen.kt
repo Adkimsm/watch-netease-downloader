@@ -35,9 +35,12 @@ import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.SettingsStore
 import io.github.adkimsm.neteasedownloader.library.RemoveScope
 import io.github.adkimsm.neteasedownloader.ui.components.ConfirmDialog
+import io.github.adkimsm.neteasedownloader.ui.components.CheckMark
 import io.github.adkimsm.neteasedownloader.ui.components.HDivider
+import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
+import io.github.adkimsm.neteasedownloader.ui.components.SectionLabel
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
@@ -50,7 +53,9 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
 /**
  * 设置页。
  *
- * 音质档位由横向 FilterChip 改为纵向单列:4 个 chip 在手表宽度下必然换行/溢出,
+ * 按「播放器优先」分组:播放 / 管理 / 同步 / 通用。同步(下载音质 + 已勾选统计 +
+ * 「立即同步」)作为维护性动作放在中段,不再是首页主角。
+ * 音质档位纵向单列:4 个 chip 在手表宽度下必然换行/溢出,
  * 且无法容纳带副标题的说明(无损需要提示占用存储,对应 PLAN §1.5 的存储预警)。
  */
 @Composable
@@ -64,6 +69,7 @@ fun SettingsScreen(
     onRemoveScopeChange: (RemoveScope) -> Unit,
     onLogout: () -> Unit,
     onDiagnostics: () -> Unit,
+    onSyncClick: () -> Unit,
     loggingOut: Boolean = false,
     levelJustChanged: Boolean = false,
     playlistCount: Int = 0,
@@ -82,29 +88,9 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            Text(
-                text = stringResource(R.string.settings_quality),
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
-            )
+            // 播放:在线播放音质是播放器的第一优先级
+            SectionLabel(text = stringResource(R.string.settings_section_play))
             Spacer(Modifier.height(sizing.gapSm))
-
-            SettingsStore.LEVELS.forEach { level ->
-                QualityOption(
-                    level = level,
-                    selected = level == currentLevel,
-                    // 音质写入很快,不做内联转圈;切换成功后短暂显示对勾作为确认
-                    loading = false,
-                    showCheck = level == currentLevel && levelJustChanged,
-                    onClick = { onLevelChange(level) },
-                )
-                Spacer(Modifier.height(sizing.gapSm / 2))
-            }
-
-            Spacer(Modifier.height(sizing.gapMd))
-            HDivider()
-            Spacer(Modifier.height(sizing.gapMd))
-
             Text(
                 text = stringResource(R.string.settings_stream_quality),
                 style = MaterialTheme.typography.bodyMedium,
@@ -126,6 +112,10 @@ fun SettingsScreen(
             Spacer(Modifier.height(sizing.gapMd))
             HDivider()
             Spacer(Modifier.height(sizing.gapMd))
+
+            // 管理:删除歌曲时的行为
+            SectionLabel(text = stringResource(R.string.settings_section_manage))
+            Spacer(Modifier.height(sizing.gapSm))
             Text(
                 text = stringResource(R.string.settings_remove_scope),
                 style = MaterialTheme.typography.bodyMedium,
@@ -146,6 +136,54 @@ fun SettingsScreen(
             HDivider()
             Spacer(Modifier.height(sizing.gapMd))
 
+            // 同步:维护性动作,不再是首页主角
+            SectionLabel(text = stringResource(R.string.settings_section_sync))
+            Spacer(Modifier.height(sizing.gapSm))
+            Text(
+                text = stringResource(R.string.settings_quality_download),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+            )
+            Spacer(Modifier.height(sizing.gapSm))
+
+            SettingsStore.LEVELS.forEach { level ->
+                QualityOption(
+                    level = level,
+                    selected = level == currentLevel,
+                    // 音质写入很快,不做内联转圈;切换成功后短暂显示对勾作为确认
+                    loading = false,
+                    showCheck = level == currentLevel && levelJustChanged,
+                    onClick = { onLevelChange(level) },
+                )
+                Spacer(Modifier.height(sizing.gapSm / 2))
+            }
+
+            if (playlistCount > 0) {
+                Spacer(Modifier.height(sizing.gapSm / 2))
+                Text(
+                    text = stringResource(
+                        R.string.settings_synced_playlists,
+                        enabledPlaylistCount,
+                        playlistCount,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextDisabled,
+                )
+            }
+
+            Spacer(Modifier.height(sizing.gapMd))
+            PrimaryButton(
+                text = stringResource(R.string.settings_sync_now),
+                onClick = onSyncClick,
+            )
+
+            Spacer(Modifier.height(sizing.gapMd))
+            HDivider()
+            Spacer(Modifier.height(sizing.gapMd))
+
+            // 通用:诊断与账号
+            SectionLabel(text = stringResource(R.string.settings_section_general))
+            Spacer(Modifier.height(sizing.gapSm))
             SecondaryButton(
                 text = stringResource(R.string.settings_diagnostics),
                 onClick = onDiagnostics,
@@ -164,17 +202,6 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = TextDisabled,
             )
-            if (playlistCount > 0) {
-                Text(
-                    text = stringResource(
-                        R.string.settings_synced_playlists,
-                        enabledPlaylistCount,
-                        playlistCount,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextDisabled,
-                )
-            }
         }
     }
 
@@ -249,12 +276,8 @@ private fun QualityOption(
                 color = BrandRed,
             )
         } else if (showCheck) {
-            Text(
-                text = "✓",
-                style = MaterialTheme.typography.titleMedium,
-                color = BrandRed,
-                modifier = Modifier.padding(end = Spacing.sm),
-            )
+            CheckMark(color = BrandRed, size = sizing.iconSize)
+            Spacer(Modifier.width(Spacing.sm))
         } else {
             Spacer(Modifier.width(Spacing.sm))
         }
