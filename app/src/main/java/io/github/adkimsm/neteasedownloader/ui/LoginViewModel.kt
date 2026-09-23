@@ -85,6 +85,8 @@ class LoginViewModel(app: Application) : AndroidViewModel(app) {
                             cookieStore.setLogin(musicU, csrf, uid)
                             Diag.i(TAG, "cookie 已持久化")
                             val account = runCatching { api.fetchAccount() }.getOrNull()
+                            // 803 响应常不带 account:登录后把真实 uid 补写进 DataStore,供红心/加歌单使用
+                            if (account?.id != null && account.id != 0L) cookieStore.setUid(account.id)
                             Diag.i(TAG, "fetchAccount=${account?.nickname ?: "null(降级忽略)"}")
                             state = LoginUiState.Success(account)
                             return@launch

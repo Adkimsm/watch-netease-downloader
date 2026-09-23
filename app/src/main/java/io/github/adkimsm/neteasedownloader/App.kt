@@ -87,6 +87,18 @@ class App : Application() {
     }
 
     /**
+     * 解析当前账号 uid:优先用已持久化的,否则现拉 account 并回写。
+     * 扫码登录的 803 响应通常没有 account,uid 常为 0,必须在这里兜底。
+     */
+    suspend fun resolveUid(): Long {
+        val stored = cookieStore.uidState.value
+        if (stored != 0L) return stored
+        val uid = runCatching { ncmApi.fetchAccount()?.id ?: 0L }.getOrDefault(0L)
+        if (uid != 0L) cookieStore.setUid(uid)
+        return uid
+    }
+
+    /**
      * 队列里所有曲目都写成 [PlaybackUri] 的自定义 scheme,
      * 真实地址(本地 content:// 或串流 https://)由 [localFirstResolver] 在打开前解析。
      */

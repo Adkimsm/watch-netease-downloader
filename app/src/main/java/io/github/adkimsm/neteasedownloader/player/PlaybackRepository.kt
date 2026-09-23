@@ -2,6 +2,8 @@ package io.github.adkimsm.neteasedownloader.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -14,7 +16,9 @@ import io.github.adkimsm.neteasedownloader.data.SongEntity
 import io.github.adkimsm.neteasedownloader.library.PlaybackControl
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +79,9 @@ class PlaybackRepository(
     private var tickJob: Job? = null
     private var lastPersistAt = 0L
 
+    /** MediaController 只允许在创建它的线程(主线程)上调用:所有 controller 操作统一转主线程 */
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     /** 最近一次组队的来源歌单(仅用于快照记录) */
     private var lastSourcePlaylistId: Long? = null
 
@@ -131,6 +138,10 @@ class PlaybackRepository(
     }
 
     private fun onController(block: (MediaController) -> Unit) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { onController(block) }
+            return
+        }
         val c = controller
         if (c != null) {
             block(c)
@@ -245,6 +256,10 @@ class PlaybackRepository(
     // ---------- 状态同步 ----------
 
     private fun syncFromController() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { syncFromController() }
+            return
+        }
         val c = controller ?: return
 
         val ids = (0 until c.mediaItemCount).mapNotNull { c.getMediaItemAt(it).mediaId.toLongOrNull() }
@@ -268,7 +283,7 @@ class PlaybackRepository(
 
     private fun startTicking() {
         if (tickJob?.isActive == true) return
-        tickJob = scope.launch {
+        tickJob = mainScope.launch {
             while (isActive) {
                 delay(POSITION_POLL_MS)
                 val c = controller ?: break
@@ -332,6 +347,10 @@ class PlaybackRepository(
     }
 
     private fun persist(force: Boolean, sourcePlaylistId: Long?) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { persist(force, sourcePlaylistId) }
+            return
+        }
         val c = controller ?: return
         if (c.mediaItemCount == 0) return
         lastPersistAt = System.currentTimeMillis()

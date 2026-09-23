@@ -276,6 +276,10 @@ private fun AppNavigation() {
                     LaunchedEffect(libraryVersion) {
                         if (libraryVersion > 0) likedViewModel.refreshFromCache()
                     }
+                    // 喜欢页拉完/失败后,回歌单页时「我喜欢的音乐」行的数量要同步
+                    LaunchedEffect(loading) {
+                        if (!loading) mainViewModel.refreshLikes()
+                    }
                     PlaylistDetailScreen(
                         title = stringResource(R.string.playlist_liked_title),
                         tracks = tracks,

@@ -232,7 +232,10 @@ class SyncEngine(
     private suspend fun resolveUid(): Long {
         val stored = cookieStore.uidState.value
         if (stored != 0L) return stored
-        return api.fetchAccount()?.id ?: 0L
+        val uid = api.fetchAccount()?.id ?: 0L
+        // 扫码登录常拿不到 uid:兜底取到后回写,供红心列表/加歌单等按 uid 判断的模块使用
+        if (uid != 0L) cookieStore.setUid(uid)
+        return uid
     }
 
     /** 供服务在异常时把失败状态推进度流 */

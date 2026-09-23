@@ -141,4 +141,20 @@ class CookieStoreInitTest {
             scope.cancel()
         }
     }
+
+    @Test
+    fun setUid_persistsAndIgnoresZero() = runBlocking {
+        val (store, scope) = newFixture()
+        try {
+            store.setUid(777L)
+            // uid 应回流到 StateFlow(落盘后常驻收集器会再确认一次)
+            assertEquals(777L, store.uidState.first { it == 777L })
+
+            // 0 是"未知"哨兵:setUid(0) 不应覆盖已持久化的 uid(与 setLogin 行为一致)
+            store.setUid(0L)
+            assertEquals(777L, store.uidState.first { it == 777L })
+        } finally {
+            scope.cancel()
+        }
+    }
 }

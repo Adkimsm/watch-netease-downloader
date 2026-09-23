@@ -84,6 +84,12 @@ class CookieStore(
         }
     }
 
+    /** 单独回写 uid:扫码轮询的 803 响应通常不带 account,登录后由 fetchAccount 补写 */
+    suspend fun setUid(uid: Long) {
+        if (uid == 0L) return
+        dataStore.edit { it[UID_KEY] = uid }
+    }
+
     /** 登出:MUSIC_U/csrf 置空并清掉 uid */
     suspend fun clear() {
         musicU = ""

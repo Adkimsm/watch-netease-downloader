@@ -41,7 +41,7 @@ class LikedSongsViewModel(app: Application) : AndroidViewModel(app) {
             _loading.value = true
             _error.value = null
             try {
-                val uid = appRef.cookieStore.uidState.value
+                val uid = appRef.resolveUid()
                 if (uid != 0L) {
                     appRef.likedSongDao.replaceAll(appRef.ncmApi.fetchLikedSongIds(uid))
                 }

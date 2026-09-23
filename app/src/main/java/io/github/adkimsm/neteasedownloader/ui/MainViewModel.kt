@@ -436,7 +436,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadAddTargets() {
         viewModelScope.launch {
-            val uid = appRef.cookieStore.uidState.value
+            val uid = appRef.resolveUid()
             _addTargets.value = addToPlaylistTargets(
                 appRef.playlistDao.getAll().map { p ->
                     AddTarget(
@@ -486,12 +486,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleLike(songId: Long) {
         val target = songId !in _likedIds.value
         _likedIds.value = if (target) _likedIds.value + songId else _likedIds.value - songId
+        _likedCount.value = _likedIds.value.size
         viewModelScope.launch {
             val ok = runCatching { appRef.ncmApi.setLiked(songId, target) }.isSuccess
             if (ok) {
                 appRef.likedSongDao.setLiked(songId, target)
             } else {
                 _likedIds.value = if (target) _likedIds.value - songId else _likedIds.value + songId
+                _likedCount.value = _likedIds.value.size
                 _errorMessage.value = getApplication<Application>()
                     .getString(R.string.error_operation_failed)
             }
