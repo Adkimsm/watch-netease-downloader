@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel3
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -92,7 +93,7 @@ fun SkeletonBox(
     modifier: Modifier = Modifier,
     width: Dp? = null,
     height: Dp = Dimens.SkeletonLine,
-    shape: RoundedCornerShape = RoundedCornerShape(4.dp),
+    shape: Shape = AppShapes.Row,
 ) {
     val alpha = shimmerAlpha()
     Box(
@@ -117,7 +118,7 @@ fun SkeletonLine(
         modifier = modifier
             .fillMaxWidth(widthFraction)
             .height(height)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(AppShapes.Pill)
             .alpha(alpha)
             .background(SurfaceLevel3),
     )
@@ -146,7 +147,7 @@ fun PlaylistSkeletonList(
                 SkeletonBox(
                     width = Dimens.SkeletonThumb,
                     height = Dimens.SkeletonThumb,
-                    shape = RoundedCornerShape(50),
+                    shape = AppShapes.Circle,
                 )
                 Spacer(Modifier.width(Spacing.sm))
                 Column(
@@ -235,6 +236,6 @@ fun LoadingOverlay(
 /** 圆形封面骨架,供各屏复用 */
 @Composable
 fun SkeletonThumb(size: Dp = Dimens.SkeletonThumb) {
-    SkeletonBox(width = size, height = size, shape = RoundedCornerShape(50))
+    SkeletonBox(width = size, height = size, shape = AppShapes.Circle)
 }
 

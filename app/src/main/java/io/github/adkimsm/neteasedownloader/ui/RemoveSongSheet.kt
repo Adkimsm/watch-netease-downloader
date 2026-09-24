@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.library.PresenceEntry
 import io.github.adkimsm.neteasedownloader.library.RemoveSelection
@@ -39,11 +38,13 @@ import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.TrackSkeletonList
+import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
-import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel1
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -204,7 +205,9 @@ private fun PlaylistPickRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.menuRowHeight)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(enabled = enabled) { onToggle(!checked) }
             .padding(end = sizing.gapSm),
         verticalAlignment = Alignment.CenterVertically,
@@ -244,8 +247,9 @@ private fun HintRow(text: String, color: androidx.compose.ui.graphics.Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(SurfaceLevel1)
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .padding(sizing.gapSm),
     ) {
         Text(text = text, style = MaterialTheme.typography.bodySmall, color = color)
@@ -259,7 +263,9 @@ private fun ToggleRow(text: String, checked: Boolean, onToggle: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.menuRowHeight)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(onClick = onToggle)
             .padding(end = sizing.gapSm),
         verticalAlignment = Alignment.CenterVertically,

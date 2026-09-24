@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,6 +28,7 @@ import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.StateBadge
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.WindowClass
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
@@ -77,7 +77,7 @@ fun LoginScreen(state: LoginUiState, onRefresh: () -> Unit) {
             ) {
                 // 二维码必须白底黑码,故保留白色卡片 + 留白(quiet zone)
                 Surface(
-                    shape = RoundedCornerShape(Spacing.sm),
+                    shape = AppShapes.Card,
                     color = Color.White,
                 ) {
                     Image(

@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,10 +35,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -45,12 +46,17 @@ import coil.compose.AsyncImage
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
+import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedGradientEnd
+import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedGradientStart
 import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel3
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel4
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -59,6 +65,8 @@ import io.github.adkimsm.neteasedownloader.ui.theme.WindowSizing
 
 /**
  * 跨屏复用组件。抽出这些是为了消除原先每屏各写一遍页面内边距与加载转圈的重复与不一致。
+ *
+ * 风格:高级深色 + 圆角毛玻璃 —— 卡片带 1dp 高光描边,按钮用品牌红渐变。
  */
 
 /**
@@ -126,9 +134,30 @@ fun ScreenScaffold(
     }
 }
 
+/** 毛玻璃卡片底:圆角 + 1dp 高光描边 + 抬升底色 */
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    container: Color = SurfaceLevel2,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val base = modifier
+        .fillMaxWidth()
+        .clip(AppShapes.Card)
+        .background(container)
+        .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Card)
+    val clickable = if (onClick != null) base.clickable(onClick = onClick) else base
+    Box(
+        modifier = clickable.padding(Dimens.CardPadding),
+        contentAlignment = Alignment.CenterStart,
+    ) { content() }
+}
+
 /**
  * 主操作按钮。[loading] 为 true 时按钮内联转圈并自动禁用 ——
  * 全应用的主操作反馈统一走这里,不再各屏手写小转圈。
+ * 使用品牌红渐变背景 + 大圆角,强化主操作。
  */
 @Composable
 fun PrimaryButton(
@@ -145,13 +174,14 @@ fun PrimaryButton(
             .fillMaxWidth()
             .heightIn(min = sizing.primaryButtonHeight),
         enabled = enabled && !loading,
-        contentPadding = PaddingValues(horizontal = sizing.gapMd, vertical = 0.dp),
+        shape = AppShapes.Control,
         colors = ButtonDefaults.buttonColors(
             containerColor = BrandRed,
             contentColor = TextPrimary,
-            disabledContainerColor = SurfaceLevel2,
+            disabledContainerColor = SurfaceLevel3,
             disabledContentColor = TextDisabled,
         ),
+        contentPadding = PaddingValues(horizontal = sizing.gapMd, vertical = 0.dp),
     ) {
         if (loading) {
             CircularProgressIndicator(
@@ -163,6 +193,50 @@ fun PrimaryButton(
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** 渐变主操作按钮:背景用品牌红渐变(毛玻璃高光版) */
+@Composable
+fun GradientPrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+) {
+    val sizing = LocalWindowSizing.current
+    val brush = Brush.horizontalGradient(
+        listOf(BrandRedGradientStart, BrandRedGradientEnd),
+    )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = sizing.primaryButtonHeight)
+            .clip(AppShapes.Control)
+            .then(
+                if (enabled && !loading) Modifier.background(brush)
+                else Modifier.background(SurfaceLevel3),
+            )
+            .clickable(enabled = enabled && !loading, onClick = onClick)
+            .padding(horizontal = sizing.gapMd),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(sizing.iconSize),
+                strokeWidth = 2.dp,
+                color = TextPrimary,
+            )
+        } else {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) TextPrimary else TextDisabled,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -187,6 +261,11 @@ fun SecondaryButton(
             .fillMaxWidth()
             .heightIn(min = sizing.secondaryButtonHeight),
         enabled = enabled && !loading,
+        shape = AppShapes.Control,
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = if (danger) StateError else TextPrimary,
+            disabledContentColor = TextDisabled,
+        ),
         contentPadding = PaddingValues(horizontal = sizing.gapMd, vertical = 0.dp),
     ) {
         if (loading) {
@@ -249,7 +328,8 @@ fun ConfirmDialog(
                 Text(text = stringResource(R.string.common_cancel), color = TextSecondary)
             }
         },
-        containerColor = SurfaceLevel2,
+        containerColor = SurfaceLevel4,
+        shape = AppShapes.Control,
     )
 }
 
@@ -385,6 +465,7 @@ fun ErrorBanner(
  *
  * 整行可点切换勾选(而非只点 Checkbox),手表上更易命中。
  * [toggleLoading] 为该行写库中的加载态。
+ * 毛玻璃卡片行:圆角 + 高光描边 + 抬升底色。
  */
 @Composable
 fun PlaylistRow(
@@ -404,7 +485,9 @@ fun PlaylistRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = sizing.touchTarget)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             // 点**行**进歌单详情;点**勾选框/角标**才切换是否纳入同步。
             // 播放器里"进歌单听歌"是主操作,不该和"是否下载"共用同一个手势。
             .clickable(enabled = !toggleLoading, onClick = onOpen)

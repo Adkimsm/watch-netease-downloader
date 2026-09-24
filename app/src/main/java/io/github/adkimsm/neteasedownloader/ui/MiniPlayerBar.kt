@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -24,12 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.SongEntity
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -40,6 +41,8 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
  * **无封面**(下载回来的文件没有专辑图),只有歌名 + 播放暂停 + 底部细进度线 ——
  * 手表上这条要尽量矮,把垂直空间留给列表。
  * [progressFraction] 非 null 时在条底画一条 2dp 品牌红进度线(播放位置反馈)。
+ *
+ * 毛玻璃卡片:圆角 + 1dp 高光描边,与列表行同语言。
  */
 @Composable
 fun MiniPlayerBar(
@@ -54,8 +57,9 @@ fun MiniPlayerBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
             .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(onClick = onClick),
     ) {
         Row(
@@ -87,7 +91,7 @@ fun MiniPlayerBar(
                     contentDescription = stringResource(
                         if (isPlaying) R.string.player_pause else R.string.player_play,
                     ),
-                    tint = TextPrimary,
+                    tint = BrandRed,
                     modifier = Modifier.size(sizing.iconSize),
                 )
             }

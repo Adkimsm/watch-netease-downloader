@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -33,15 +33,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.player.Repeat
 import io.github.adkimsm.neteasedownloader.ui.components.HDivider
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
+import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel1
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -185,8 +187,9 @@ internal fun ActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.menuRowHeight)
-            .clip(RoundedCornerShape(6.dp))
-            .background(SurfaceLevel1)
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(onClick = onClick)
             .padding(horizontal = sizing.gapSm),
         verticalAlignment = Alignment.CenterVertically,

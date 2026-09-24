@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -42,10 +42,13 @@ import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.SectionLabel
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
+import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel1
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -106,7 +109,7 @@ fun SettingsScreen(
                     showCheck = level == currentStreamLevel && levelJustChanged,
                     onClick = { onStreamLevelChange(level) },
                 )
-                Spacer(Modifier.height(sizing.gapSm / 2))
+                Spacer(Modifier.height(Dimens.CardSpacing))
             }
 
             Spacer(Modifier.height(sizing.gapMd))
@@ -129,7 +132,7 @@ fun SettingsScreen(
                     selected = scope == removeScope,
                     onClick = { onRemoveScopeChange(scope) },
                 )
-                Spacer(Modifier.height(sizing.gapSm / 2))
+                Spacer(Modifier.height(Dimens.CardSpacing))
             }
 
             Spacer(Modifier.height(sizing.gapMd))
@@ -155,11 +158,11 @@ fun SettingsScreen(
                     showCheck = level == currentLevel && levelJustChanged,
                     onClick = { onLevelChange(level) },
                 )
-                Spacer(Modifier.height(sizing.gapSm / 2))
+                Spacer(Modifier.height(Dimens.CardSpacing))
             }
 
             if (playlistCount > 0) {
-                Spacer(Modifier.height(sizing.gapSm / 2))
+                Spacer(Modifier.height(Dimens.CardSpacing))
                 Text(
                     text = stringResource(
                         R.string.settings_synced_playlists,
@@ -234,8 +237,13 @@ private fun QualityOption(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.touchTarget)
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) SurfaceLevel1 else MaterialTheme.colorScheme.background)
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(
+                Dimens.GlassBorder,
+                if (selected) BrandRed else GlassHighlight,
+                AppShapes.Row,
+            )
             .clickable(enabled = !loading, role = Role.RadioButton, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -292,8 +300,13 @@ private fun ScopeOption(scope: RemoveScope, selected: Boolean, onClick: () -> Un
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.touchTarget)
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) SurfaceLevel1 else MaterialTheme.colorScheme.background)
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(
+                Dimens.GlassBorder,
+                if (selected) BrandRed else GlassHighlight,
+                AppShapes.Row,
+            )
             .clickable(role = Role.RadioButton, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {

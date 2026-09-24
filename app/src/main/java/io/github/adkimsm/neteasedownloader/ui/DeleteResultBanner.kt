@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,12 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.library.RemoveOutcome
 import io.github.adkimsm.neteasedownloader.library.RemoveReport
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
+import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
@@ -61,8 +63,13 @@ fun DeleteResultBanner(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = sizing.bannerMinHeight)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
             .background(if (report.hasFailure) StateError.copy(alpha = 0.16f) else SurfaceLevel2)
+            .border(
+                Dimens.GlassBorder,
+                if (report.hasFailure) StateError else GlassHighlight,
+                AppShapes.Row,
+            )
             .padding(start = sizing.gapSm, end = sizing.gapSm / 2),
         verticalAlignment = Alignment.CenterVertically,
     ) {

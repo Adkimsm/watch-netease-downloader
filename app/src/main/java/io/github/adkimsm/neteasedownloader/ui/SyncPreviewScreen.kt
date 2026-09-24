@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,11 +25,14 @@ import io.github.adkimsm.neteasedownloader.ui.components.StatRow
 import io.github.adkimsm.neteasedownloader.ui.components.StatSkeleton
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedMuted
+import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel1
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
 
@@ -111,8 +114,9 @@ private fun StorageCard(diff: SyncEngine.Diff, shortage: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(SurfaceLevel1)
+            .clip(AppShapes.Card)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Card)
             .padding(Spacing.sm),
     ) {
         Text(
@@ -133,14 +137,14 @@ private fun StorageCard(diff: SyncEngine.Diff, shortage: Boolean) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(AppShapes.Pill)
                     .background(BrandRedMuted),
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(ratio)
                         .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .clip(AppShapes.Pill)
                         .background(if (shortage) StateError else BrandRed),
                 )
             }

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +33,7 @@ import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedMuted
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -149,7 +149,7 @@ fun SyncProgressScreen(progress: SyncEngine.Progress, onStop: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(sizing.progressBar)
-                            .clip(RoundedCornerShape(sizing.progressBar / 2)),
+                            .clip(AppShapes.Pill),
                         color = BrandRed,
                         trackColor = BrandRedMuted,
                     )
@@ -159,7 +159,7 @@ fun SyncProgressScreen(progress: SyncEngine.Progress, onStop: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(sizing.progressBar)
-                            .clip(RoundedCornerShape(sizing.progressBar / 2)),
+                            .clip(AppShapes.Pill),
                         color = BrandRed,
                         trackColor = BrandRedMuted,
                     )

@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Download
@@ -28,11 +28,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
@@ -41,9 +40,13 @@ import io.github.adkimsm.neteasedownloader.ui.components.PlaylistRow
 import io.github.adkimsm.neteasedownloader.ui.components.PlaylistSkeletonList
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
+import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel3
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
 
@@ -128,7 +131,10 @@ fun PlaylistScreen(
                 }
 
                 else -> {
-                    LazyColumn(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing),
+                    ) {
                         if (likedEntry != null) {
                             item(key = "liked") { LikedEntryRow(likedEntry, onOpen = onOpenLiked) }
                         }
@@ -203,15 +209,17 @@ private fun LikedEntryRow(entry: LikedEntry, onOpen: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.touchTarget)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(onClick = onOpen)
-            .padding(start = sizing.gapSm),
+            .padding(start = sizing.gapSm, top = Spacing.xs, end = sizing.gapSm, bottom = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(sizing.iconSize * 1.8f)
-                .clip(RoundedCornerShape(50))
+                .clip(AppShapes.Circle)
                 .background(BrandRed),
             contentAlignment = Alignment.Center,
         ) {
@@ -250,16 +258,18 @@ private fun CreatePlaylistRow(onCreate: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.touchTarget)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(onClick = onCreate)
-            .padding(start = sizing.gapSm),
+            .padding(start = sizing.gapSm, top = Spacing.xs, end = sizing.gapSm, bottom = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(sizing.iconSize * 1.8f)
-                .clip(RoundedCornerShape(50))
-                .background(SurfaceLevel2),
+                .clip(AppShapes.Circle)
+                .background(SurfaceLevel3),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

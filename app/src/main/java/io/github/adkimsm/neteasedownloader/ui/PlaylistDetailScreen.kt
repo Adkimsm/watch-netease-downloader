@@ -1,7 +1,9 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
@@ -28,7 +29,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.SongEntity
 import io.github.adkimsm.neteasedownloader.data.SongState
@@ -36,11 +36,15 @@ import io.github.adkimsm.neteasedownloader.ui.components.ErrorBanner
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.StateBadge
 import io.github.adkimsm.neteasedownloader.ui.components.TrackSkeletonList
+import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
+import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateInfo
 import io.github.adkimsm.neteasedownloader.ui.theme.StateOk
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
+import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -50,6 +54,8 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
  *
  * 曲目行**无封面**(D13):本地文件没有专辑图,给每首歌显示封面就得逐首拉远端专辑图,
  * 与"简洁 + 省电"直接冲突。行内用状态徽标把"已下载 / 在线 / 无版权"说清楚。
+ *
+ * 毛玻璃卡片行:圆角 + 1dp 高光描边,与首页列表同一语言。
  */
 @Composable
 fun PlaylistDetailScreen(
@@ -92,7 +98,10 @@ fun PlaylistDetailScreen(
                     )
                 }
 
-                else -> LazyColumn(modifier = Modifier.weight(1f)) {
+                else -> LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing),
+                ) {
                     itemsIndexed(tracks, key = { _, song -> song.songId }) { index, song ->
                         TrackRow(
                             song = song,
@@ -125,7 +134,9 @@ private fun TrackRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = sizing.menuRowHeight)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Row)
+            .background(SurfaceLevel2)
+            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(enabled = playable && !pending, onClick = onClick)
             .padding(start = sizing.gapSm),
         verticalAlignment = Alignment.CenterVertically,
@@ -173,4 +184,3 @@ private fun TrackBadge(song: SongEntity) {
         else -> StateBadge(text = stringResource(R.string.detail_badge_online), color = StateInfo)
     }
 }
-
