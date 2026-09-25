@@ -68,6 +68,16 @@ fun SettingsScreen(
     levelJustChanged: Boolean = false,
     playlistCount: Int = 0,
     enabledPlaylistCount: Int = 0,
+    unlockDownload: Boolean,
+    onUnlockDownloadChange: (Boolean) -> Unit,
+    unlockStream: Boolean,
+    onUnlockStreamChange: (Boolean) -> Unit,
+    providerKuwo: Boolean,
+    onProviderKuwoChange: (Boolean) -> Unit,
+    providerKugou: Boolean,
+    onProviderKugouChange: (Boolean) -> Unit,
+    spoofRealIp: Boolean,
+    onSpoofRealIpChange: (Boolean) -> Unit,
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     val versionName = rememberAppVersionName()
@@ -170,6 +180,55 @@ fun SettingsScreen(
             PrimaryButton(
                 text = stringResource(R.string.settings_sync_now),
                 onClick = onSyncClick,
+            )
+
+            Spacer(Modifier.height(sizing.gapMd))
+            HDivider()
+            Spacer(Modifier.height(sizing.gapMd))
+            // 解锁:灰色歌曲改用第三方音源。下载与在线播放各自独立 ——
+            // 串流不落盘、关掉即可恢复;下载会产出永久文件,所以分开给开关。
+            SectionLabel(text = stringResource(R.string.settings_section_unlock))
+            Spacer(Modifier.height(sizing.gapSm))
+
+            ToggleOption(
+                title = stringResource(R.string.settings_unlock_download),
+                description = stringResource(R.string.settings_unlock_download_desc),
+                checked = unlockDownload,
+                showDivider = true,
+                onClick = { onUnlockDownloadChange(!unlockDownload) },
+            )
+            ToggleOption(
+                title = stringResource(R.string.settings_unlock_stream),
+                description = stringResource(R.string.settings_unlock_stream_desc),
+                checked = unlockStream,
+                showDivider = true,
+                onClick = { onUnlockStreamChange(!unlockStream) },
+            )
+
+            // 两个替换开关都关着时,音源开关没有意义 → 置灰
+            val providersEnabled = unlockDownload || unlockStream
+            ToggleOption(
+                title = stringResource(R.string.settings_provider_kuwo),
+                description = stringResource(R.string.settings_provider_desc),
+                checked = providerKuwo,
+                enabled = providersEnabled,
+                showDivider = true,
+                onClick = { onProviderKuwoChange(!providerKuwo) },
+            )
+            ToggleOption(
+                title = stringResource(R.string.settings_provider_kugou),
+                description = null,
+                checked = providerKugou,
+                enabled = providersEnabled,
+                showDivider = true,
+                onClick = { onProviderKugouChange(!providerKugou) },
+            )
+            ToggleOption(
+                title = stringResource(R.string.settings_spoof_real_ip),
+                description = stringResource(R.string.settings_spoof_real_ip_desc),
+                checked = spoofRealIp,
+                showDivider = false,
+                onClick = { onSpoofRealIpChange(!spoofRealIp) },
             )
 
             Spacer(Modifier.height(sizing.gapMd))
@@ -322,6 +381,71 @@ private fun ScopeOption(
                 color = TextSecondary,
             )
         }
+    }
+}
+/**
+ * 布尔设置项。
+ *
+ * 与音质/删除档位共用同一套视觉语言(左红竖条 + 选中底色),但**多一个开/关文字**:
+ * 单选组里"选中项"不言自明,开关上"现在到底是开还是关"必须一眼可见。
+ */
+@Composable
+private fun ToggleOption(
+    title: String,
+    description: String?,
+    checked: Boolean,
+    showDivider: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val sizing = LocalWindowSizing.current
+    ListRow(
+        minHeight = sizing.touchTarget,
+        selected = checked,
+        enabled = enabled,
+        onClick = onClick,
+        role = Role.Switch,
+        showDivider = showDivider,
+        contentPadding = PaddingValues(horizontal = 0.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(sizing.touchTarget)
+                .background(
+                    if (checked && enabled) BrandRed else MaterialTheme.colorScheme.background,
+                ),
+        )
+        Spacer(Modifier.width(Spacing.sm))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = Spacing.xs),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) TextPrimary else TextDisabled,
+            )
+            if (!description.isNullOrEmpty()) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                )
+            }
+        }
+        Text(
+            text = stringResource(if (checked) R.string.common_on else R.string.common_off),
+            style = MaterialTheme.typography.bodySmall,
+            color = when {
+                !enabled -> TextDisabled
+                checked -> BrandRed
+                else -> TextSecondary
+            },
+        )
+        Spacer(Modifier.width(Spacing.sm))
     }
 }
 

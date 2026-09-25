@@ -169,6 +169,11 @@ private fun AppNavigation() {
                     val levelChanged by mainViewModel.levelJustChanged.collectAsStateWithLifecycle()
                     val playlists by mainViewModel.playlists.collectAsStateWithLifecycle()
                     val removeScope by mainViewModel.removeScope.collectAsStateWithLifecycle()
+                    val unlockDownload by mainViewModel.unlockDownload.collectAsStateWithLifecycle()
+                    val unlockStream by mainViewModel.unlockStream.collectAsStateWithLifecycle()
+                    val providerKuwo by mainViewModel.providerKuwo.collectAsStateWithLifecycle()
+                    val providerKugou by mainViewModel.providerKugou.collectAsStateWithLifecycle()
+                    val spoofRealIp by mainViewModel.spoofRealIp.collectAsStateWithLifecycle()
                     SettingsScreen(
                         currentLevel = level,
                         currentStreamLevel = streamLevel,
@@ -184,6 +189,16 @@ private fun AppNavigation() {
                         levelJustChanged = levelChanged,
                         playlistCount = playlists.size,
                         enabledPlaylistCount = playlists.count { it.enabled },
+                        unlockDownload = unlockDownload,
+                        onUnlockDownloadChange = mainViewModel::setUnlockDownload,
+                        unlockStream = unlockStream,
+                        onUnlockStreamChange = mainViewModel::setUnlockStream,
+                        providerKuwo = providerKuwo,
+                        onProviderKuwoChange = mainViewModel::setProviderKuwo,
+                        providerKugou = providerKugou,
+                        onProviderKugouChange = mainViewModel::setProviderKugou,
+                        spoofRealIp = spoofRealIp,
+                        onSpoofRealIpChange = mainViewModel::setSpoofRealIp,
                     )
                 }
 
@@ -207,6 +222,8 @@ private fun AppNavigation() {
                     val loading by detailViewModel.loading.collectAsStateWithLifecycle()
                     val error by detailViewModel.error.collectAsStateWithLifecycle()
                     val libraryVersion by mainViewModel.libraryVersion.collectAsStateWithLifecycle()
+                    // 播放开关:开着时 MISSING_URL 的歌在列表里仍可点
+                    val streamFallback by mainViewModel.unlockStream.collectAsStateWithLifecycle()
                     // 删完之后列表要立刻少一首 —— 只读本地缓存,不重新拉网络
                     LaunchedEffect(libraryVersion) {
                         if (libraryVersion > 0) detailViewModel.refreshFromCache()
@@ -218,6 +235,7 @@ private fun AppNavigation() {
                         loading = loading,
                         error = error,
                         pendingSongIds = emptySet(),
+                        streamFallback = streamFallback,
                         onBack = mainViewModel::pop,
                         onRetry = detailViewModel::load,
                         onDismissError = detailViewModel::clearError,
@@ -274,6 +292,7 @@ private fun AppNavigation() {
                     val loading by likedViewModel.loading.collectAsStateWithLifecycle()
                     val error by likedViewModel.error.collectAsStateWithLifecycle()
                     val libraryVersion by mainViewModel.libraryVersion.collectAsStateWithLifecycle()
+                    val streamFallback by mainViewModel.unlockStream.collectAsStateWithLifecycle()
                     LaunchedEffect(libraryVersion) {
                         if (libraryVersion > 0) likedViewModel.refreshFromCache()
                     }
@@ -287,6 +306,7 @@ private fun AppNavigation() {
                         loading = loading,
                         error = error,
                         pendingSongIds = emptySet(),
+                        streamFallback = streamFallback,
                         onBack = mainViewModel::pop,
                         onRetry = likedViewModel::load,
                         onDismissError = likedViewModel::clearError,

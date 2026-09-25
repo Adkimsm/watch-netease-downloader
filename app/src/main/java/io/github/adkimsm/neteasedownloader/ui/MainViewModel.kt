@@ -45,6 +45,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val streamLevel = appRef.settingsStore.streamLevel
     val progress = appRef.syncEngine.progress
 
+    // 灰色歌曲解锁:下载与在线播放各自一个开关,音源与地区解锁各一个
+    val unlockDownload = appRef.settingsStore.unlockDownload
+    val unlockStream = appRef.settingsStore.unlockStream
+    val providerKuwo = appRef.settingsStore.providerKuwo
+    val providerKugou = appRef.settingsStore.providerKugou
+    val spoofRealIp = appRef.settingsStore.spoofRealIp
+
     private val _playlists = MutableStateFlow<List<PlaylistEntity>>(emptyList())
     val playlists = _playlists.asStateFlow()
 
@@ -402,6 +409,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRemoveScope(scope: RemoveScope) {
         viewModelScope.launch { appRef.settingsStore.setRemoveScope(scope) }
+    }
+
+    fun setUnlockDownload(value: Boolean) {
+        viewModelScope.launch { appRef.settingsStore.setUnlockDownload(value) }
+    }
+
+    fun setUnlockStream(value: Boolean) {
+        viewModelScope.launch { appRef.settingsStore.setUnlockStream(value) }
+    }
+
+    fun setProviderKuwo(value: Boolean) {
+        viewModelScope.launch { appRef.settingsStore.setProviderKuwo(value) }
+    }
+
+    fun setProviderKugou(value: Boolean) {
+        viewModelScope.launch { appRef.settingsStore.setProviderKugou(value) }
+    }
+
+    fun setSpoofRealIp(value: Boolean) {
+        viewModelScope.launch { appRef.settingsStore.setSpoofRealIp(value) }
     }
 
     // ---------- 远端歌单管理与红心 ----------

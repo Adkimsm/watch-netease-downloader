@@ -29,6 +29,7 @@ import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
+import io.github.adkimsm.neteasedownloader.ui.theme.StateInfo
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -76,6 +77,15 @@ fun SyncPreviewScreen(
                     value = stringResource(R.string.preview_count_unit, diff.missingUrlCount),
                     valueColor = if (diff.missingUrlCount > 0) StateWarn else TextSecondary,
                 )
+                // 只在真的替换过时才占一行:没有灰歌的用户不该看到这个数字
+                if (diff.unlockedCount > 0) {
+                    Spacer(Modifier.height(sizing.gapSm / 2))
+                    StatRow(
+                        label = stringResource(R.string.preview_unlocked),
+                        value = stringResource(R.string.preview_count_unit, diff.unlockedCount),
+                        valueColor = StateInfo,
+                    )
+                }
             }
 
             Spacer(Modifier.height(sizing.gapMd))

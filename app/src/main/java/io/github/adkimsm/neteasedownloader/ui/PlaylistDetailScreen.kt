@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.adkimsm.neteasedownloader.R
+import io.github.adkimsm.neteasedownloader.net.unlock.ProviderId
 import io.github.adkimsm.neteasedownloader.data.SongEntity
 import io.github.adkimsm.neteasedownloader.data.SongState
 import io.github.adkimsm.neteasedownloader.ui.components.ErrorBanner
@@ -54,6 +55,8 @@ fun PlaylistDetailScreen(
     loading: Boolean,
     error: String?,
     pendingSongIds: Set<Long>,
+    /** 在线播放开关:开着时 MISSING_URL 的歌仍可点(播放时去匹配第三方音源) */
+    streamFallback: Boolean = false,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onDismissError: () -> Unit,
@@ -92,7 +95,8 @@ fun PlaylistDetailScreen(
                     itemsIndexed(tracks, key = { _, song -> song.songId }) { index, song ->
                         TrackRow(
                             song = song,
-                            playable = isPlayable(song),
+                            streamFallback = streamFallback,
+                            playable = isPlayable(song, streamFallback),
                             pending = song.songId in pendingSongIds,
                             // 最后一行不画分隔线,避免列表尾部多出一条线
                             showDivider = index < tracks.lastIndex,
@@ -107,13 +111,21 @@ fun PlaylistDetailScreen(
 }
 
 /** 无网且未下载的歌:置灰且点不动,而不是点了才报错 */
-internal fun isPlayable(song: SongEntity): Boolean =
-    song.hasLocalFile || song.state != SongState.MISSING_URL.name
+/**
+ * 曲目行能不能点。
+ *
+ * [streamFallback] 是「在线播放时替换音源」开关:下载开关关着时,灰歌会被同步标成
+ * MISSING_URL,若这里不看播放开关,曲目行就会置灰且点不动 —— 播放开关等于白设。
+ * 打开时行可点、徽标改为「第三方音源」;真匹配不到再由播放层给出错误文案。
+ */
+internal fun isPlayable(song: SongEntity, streamFallback: Boolean): Boolean =
+    song.hasLocalFile || song.state != SongState.MISSING_URL.name || streamFallback
 
 @Composable
 private fun TrackRow(
     song: SongEntity,
     playable: Boolean,
+    streamFallback: Boolean,
     pending: Boolean,
     showDivider: Boolean,
     onClick: () -> Unit,
@@ -146,7 +158,11 @@ private fun TrackRow(
             )
         }
         Spacer(Modifier.size(Spacing.xs))
-        TrackBadge(song)
+        TrackBadge(song, streamFallback)
+        sourceLabel(song.source)?.let { label ->
+            Spacer(Modifier.size(Spacing.xs))
+            StateBadge(text = label, color = StateInfo)
+        }
         IconButton(onClick = onActions, modifier = Modifier.size(sizing.touchTarget)) {
             Icon(
                 imageVector = Icons.Filled.MoreVert,
@@ -158,15 +174,32 @@ private fun TrackRow(
     }
 }
 
-/** 状态徽标:色 + 文案双重编码,不单靠颜色 */
+/**
+ * 状态徽标:色 + 文案双重编码,不单靠颜色。
+ *
+ * MISSING_URL 有两种呈现 —— 播放开关开着时它仍可播(去匹配第三方音源),
+ * 此时写「第三方音源」而不是「无版权」,免得与「行可以点」自相矛盾。
+ */
 @Composable
-private fun TrackBadge(song: SongEntity) {
+private fun TrackBadge(song: SongEntity, streamFallback: Boolean) {
     when {
         song.hasLocalFile -> StateBadge(text = stringResource(R.string.detail_badge_local), color = StateOk)
+        song.state == SongState.MISSING_URL.name && streamFallback -> StateBadge(
+            text = stringResource(R.string.detail_badge_fallback),
+            color = StateInfo,
+        )
         song.state == SongState.MISSING_URL.name -> StateBadge(
             text = stringResource(R.string.detail_badge_missing),
             color = StateWarn,
         )
         else -> StateBadge(text = stringResource(R.string.detail_badge_online), color = StateInfo)
     }
+}
+
+/** 下载来源徽标:未知来源(含网易云原音源)不显示,不猜也不崩 */
+@Composable
+private fun sourceLabel(source: String?): String? = when (source) {
+    ProviderId.KUWO -> stringResource(R.string.detail_source_kuwo)
+    ProviderId.KUGOU -> stringResource(R.string.detail_source_kugou)
+    else -> null
 }

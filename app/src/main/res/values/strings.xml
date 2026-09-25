@@ -35,6 +35,10 @@
     <string name="detail_badge_local">已下载</string>
     <string name="detail_badge_online">在线</string>
     <string name="detail_badge_missing">无版权</string>
+    <!-- 播放开关开着时,这首歌会去匹配第三方音源:能不能播要点了才知道 -->
+    <string name="detail_badge_fallback">第三方音源</string>
+    <string name="detail_source_kuwo">酷我</string>
+    <string name="detail_source_kugou">酷狗</string>
 
     <string name="settings_stream_quality">在线播放音质</string>
     <string name="settings_remove_scope">删除歌曲时</string>
@@ -120,6 +124,7 @@
     <string name="preview_to_download">待下载</string>
     <string name="preview_to_delete">待删除</string>
     <string name="preview_skipped">跳过(无版权/VIP)</string>
+    <string name="preview_unlocked">其中第三方音源</string>
     <string name="preview_count_unit">%1$d 首</string>
     <string name="preview_storage">预计占用 %1$s / 可用 %2$s</string>
     <string name="preview_storage_short">存储空间不足,请先清理或降低音质档位</string>
@@ -168,6 +173,18 @@
     <string name="settings_sync_now">立即同步</string>
     <string name="settings_version">版本 %1$s</string>
     <string name="settings_synced_playlists">已勾选 %1$d / %2$d 个歌单</string>
+
+    <!-- 解锁:灰色歌曲的第三方音源替换(下载与在线播放各自独立开关) -->
+    <string name="settings_section_unlock">解锁</string>
+    <string name="settings_unlock_download">下载时替换音源</string>
+    <string name="settings_unlock_download_desc">无版权/仅试听的歌改用酷我、酷狗音源下载</string>
+    <string name="settings_unlock_stream">在线播放时替换音源</string>
+    <string name="settings_unlock_stream_desc">这类歌直接串流第三方音源,不占空间</string>
+    <string name="settings_provider_kuwo">酷我</string>
+    <string name="settings_provider_kugou">酷狗</string>
+    <string name="settings_provider_desc">音源优先级:酷我 → 酷狗</string>
+    <string name="settings_spoof_real_ip">海外地区解锁</string>
+    <string name="settings_spoof_real_ip_desc">给网易云请求带上 X-Real-IP: 118.88.88.88</string>
 
     <!-- ==================== 兜底错误 ==================== -->
     <!-- 仅在拿不到引擎/系统异常信息时使用 -->
