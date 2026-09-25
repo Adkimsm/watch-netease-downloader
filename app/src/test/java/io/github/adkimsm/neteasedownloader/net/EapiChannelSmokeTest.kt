@@ -25,4 +25,18 @@ class EapiChannelSmokeTest {
         assertNotNull("响应体必须是可解析的 JSON(空 body 即 weapi 静默失败特征)", resp.body)
         assertEquals("匿名调用应被业务层拒绝(未登录)", 301, resp.code)
     }
+    /**
+     * 地区解锁会给每个 eapi 请求加 `X-Real-IP`。多一个头本身可能被服务端拒绝,
+     * 所以这里同样打真实接口,确认通道没被带坏。
+     */
+    @Test
+    fun eapiLikedList_withRealIpHeader_stillAccepted() = runBlocking {
+        val withRealIp = NcmApi(
+            cookieProvider = CookieProvider { "" },
+            extraHeaders = { mapOf("X-Real-IP" to NcmApi.REGION_UNLOCK_IP) },
+        )
+        val resp = withRealIp.eapiRaw("/api/song/like/get", RemoteWritePayload.likedIds(1L))
+        assertNotNull("带 X-Real-IP 时响应体仍须可解析", resp.body)
+        assertEquals("匿名调用仍应被业务层拒绝", 301, resp.code)
+    }
 }

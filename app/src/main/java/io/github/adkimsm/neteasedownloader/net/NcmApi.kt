@@ -48,7 +48,16 @@ class NcmResponse(
  * 读操作与远端写操作(歌单管理/红心)一律走 eapi:2026-09 实测 weapi 通道
  * (music.163.com/weapi 路径)对全部端点返回 HTTP 200 空 body,静默失败。
  */
-class NcmApi(private val cookieProvider: CookieProvider) {
+class NcmApi(
+    private val cookieProvider: CookieProvider,
+    /**
+     * 附加到每个 eapi 请求上的头。默认空,既有调用点(含单测)不受影响。
+     *
+     * 目前唯一用途是地区解锁:打开后带上 `X-Real-IP`,让服务端按国内 IP 判定版权。
+     * 第三方音源的请求**不**走这里,也绝不带这个头。
+     */
+    private val extraHeaders: () -> Map<String, String> = { emptyMap() },
+) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS)
@@ -70,6 +79,7 @@ class NcmApi(private val cookieProvider: CookieProvider) {
                 .post(FormBody.Builder().add("params", form.params).build())
                 .header("Cookie", cookieProvider.cookieHeader())
                 .header("User-Agent", IPHONE_UA)
+                .apply { extraHeaders().forEach { (name, value) -> header(name, value) } }
                 .build()
             val start = System.nanoTime()
             try {
@@ -242,6 +252,9 @@ class NcmApi(private val cookieProvider: CookieProvider) {
     }
     companion object {
         private const val API_DOMAIN = "https://interface.music.163.com"
+
+        /** 地区解锁用的伪来源 IP(与参考实现同值) */
+        const val REGION_UNLOCK_IP = "118.88.88.88"
         private const val IPHONE_UA =
             "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)"
         private const val BATCH_SONG_DETAIL = 500
