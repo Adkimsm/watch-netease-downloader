@@ -12,7 +12,9 @@ import io.github.adkimsm.neteasedownloader.net.normalizeDownloadUrl
  * 三重把关缺一不可:
  *  1. 打分([CandidateScorer])挡掉"同名但不是这首"(Live/翻唱/伴奏);
  *  2. 探活([ProviderHttp.probe])挡掉失效直链与 HTML 错误页;
- *  3. 只探前 N 条,避免一个音源打十几次请求 —— 手表上网络与电量都金贵。
+ *  3. 实测时长([durationFromBytes] + [isPreviewClip])挡掉**试听片段** —— 酷我对受限歌曲
+ *     会固定回一段约 11 秒的提示音,听起来像「这首歌只有 11 秒」;
+ *  4. 只探前 N 条,避免一个音源打十几次请求 —— 手表上网络与电量都金贵。
  *
  * 任何一步失败都只是"这条候选不行",绝不向上抛异常:匹配失败的正确结果
  * 是让这首歌保持 [io.github.adkimsm.neteasedownloader.data.SongState.MISSING_URL],
@@ -53,8 +55,21 @@ class SourceMatcher(private val providers: List<SourceProvider>) {
                 val url = normalizeDownloadUrl(track.url)
                 val probe = runCatching { http.probe(url) }.getOrNull() ?: continue
 
-                val size = maxOf(track.size, probe.totalBytes)
+                // 以**实测**字节数为准:音源自报的 size 可能偏大,会把试听片段算成整曲
+                val size = if (probe.totalBytes > 0) probe.totalBytes else track.size
                 val br = if (track.br > 0) track.br else mp3Bitrate(probe.head) ?: 0L
+
+                // 酷我对受限歌曲固定回一段约 11 秒的提示音(「仅在酷我音乐端可播放」),
+                // 实测时长与标称时长差一个数量级 —— 这种片段必须丢掉,换下一个候选/音源。
+                val actualSec = durationFromBytes(size, br)
+                if (isPreviewClip(candidate.durationSec, actualSec)) {
+                    Diag.i(
+                        TAG,
+                        "试听片段,跳过 $providerId songId=${query.songId} " +
+                            "「${candidate.title}」标称=${candidate.durationSec}s 实际=${actualSec}s",
+                    )
+                    continue
+                }
                 Diag.i(
                     TAG,
                     "命中 $providerId songId=${query.songId} 「${candidate.title}」/" +
@@ -79,4 +94,22 @@ class SourceMatcher(private val providers: List<SourceProvider>) {
         /** 每个音源最多探活几条候选。 */
         const val MAX_CANDIDATES_PER_PROVIDER = 3
     }
+}
+
+/**
+ * 从字节数与码率反推时长(秒)。任一侧未知时返回 null,不要把没有证据的曲误判成试听。
+ */
+internal fun durationFromBytes(bytes: Long, br: Long): Int? =
+    if (bytes <= 0L || br <= 0L) null else (bytes * 8 / br).toInt()
+
+/**
+ * 音源标了 [declaredSec] 秒,实测文件却不到一半:这是试听片段,不是这首歌。
+ *
+ * 酷我对受限歌曲会固定回一段约 11 秒的提示音(「仅在酷我音乐手机端可播放」),
+ * 实测大小是 181521 字节,与标称时长(200 秒以上)差一个数量级。
+ * 标称时长未知或码率读不出时不判,避免把拿不到证据的真曲误杀。
+ */
+internal fun isPreviewClip(declaredSec: Int, actualSec: Int?): Boolean {
+    if (declaredSec <= 0 || actualSec == null) return false
+    return actualSec * 2 < declaredSec
 }

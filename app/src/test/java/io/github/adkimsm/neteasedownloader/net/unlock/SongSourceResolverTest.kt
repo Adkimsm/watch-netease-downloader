@@ -18,7 +18,7 @@ class SongSourceResolverTest {
 
     private val query = SongQuery(songId = 186016, name = "晴天", artist = "周杰伦", durationMs = 269_000)
     private val candidate = SourceCandidate(id = "228908", title = "晴天", artist = "周杰伦", durationSec = 269)
-    private val okProbe = ProbeResult(206, 181_521, "audio/mpeg", null, hex("fffb90c4"))
+    private val okProbe = ProbeResult(206, 4_304_000, "audio/mpeg", null, hex("fffb90c4"))
 
     private fun unusable(id: Long) = SongUrlDto(
         id = id, url = null, br = 0, size = 0, md5 = null, type = null,
@@ -45,7 +45,7 @@ class SongSourceResolverTest {
         }
 
         override suspend fun track(http: ProviderHttp, candidate: SourceCandidate): TrackResult? =
-            trackUrl?.let { TrackResult(url = it, size = 181_521, br = 128_000) }
+            trackUrl?.let { TrackResult(url = it, size = 4_304_000, br = 128_000) }
     }
 
     private class FakeHttp(private val probe: ProbeResult?) : ProviderHttp {
@@ -92,7 +92,7 @@ class SongSourceResolverTest {
         assertEquals("替换来的条目必须显式可播", 0, result.dto.fee)
         assertNull("freeTrialInfo 必须清掉,否则上层仍判不可用", result.dto.freeTrialInfo)
         assertEquals("mp3", result.dto.type)
-        assertEquals(181_521L, result.dto.size)
+        assertEquals(4_304_000L, result.dto.size)
         assertEquals(128_000L, result.dto.br)
         assertEquals(186016L, result.dto.id)
     }
