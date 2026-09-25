@@ -1,0 +1,60 @@
+{
+  "status": 1,
+  "error_code": 0,
+  "error_msg": "",
+  "data": {
+    "pagesize": 20,
+    "page": 1,
+    "total": 387,
+    "lists": [
+      {
+        "SongName": "晴天 (Live)",
+        "SingerName": "周杰伦",
+        "AlbumName": "",
+        "Duration": 134,
+        "FileHash": "A925B6F4818F1F73FFD6B7E146010046",
+        "HQFileHash": "",
+        "FileSize": 2145846,
+        "HQFileSize": 0,
+        "HQBitrate": 0,
+        "Bitrate": 128,
+        "Privilege": 0,
+        "HQPrivilege": 0,
+        "Audioid": 92249117,
+        "AlbumID": ""
+      },
+      {
+        "SongName": "晴天 (Live)",
+        "SingerName": "周杰伦",
+        "AlbumName": "精彩音乐汇",
+        "Duration": 261,
+        "FileHash": "4C1422690F23FBF67EB21DFDF0C4D841",
+        "HQFileHash": "25818C3E9080BE22F2997241F28F0D5E",
+        "FileSize": 4178754,
+        "HQFileSize": 10445449,
+        "HQBitrate": 320,
+        "Bitrate": 128,
+        "Privilege": 5,
+        "HQPrivilege": 5,
+        "Audioid": 21181681,
+        "AlbumID": "939265"
+      },
+      {
+        "SongName": "晴天 (DJ 阿Bo版)",
+        "SingerName": "周杰伦",
+        "AlbumName": "",
+        "Duration": 116,
+        "FileHash": "E5DA13D042C90BDA378005BC68490ECD",
+        "HQFileHash": "368203935D7FB271A2DFB9E8421203A3",
+        "FileSize": 1865395,
+        "HQFileSize": 4663423,
+        "HQBitrate": 320,
+        "Bitrate": 128,
+        "Privilege": 5,
+        "HQPrivilege": 5,
+        "Audioid": 451852862,
+        "AlbumID": ""
+      }
+    ]
+  }
+}
