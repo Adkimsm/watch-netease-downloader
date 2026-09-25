@@ -114,7 +114,12 @@ class App : Application() {
     val queueStore: QueueStore by lazy { QueueStore(this) }
 
     val playbackSource: NcmPlaybackSource by lazy {
-        NcmPlaybackSource(songDao = songDao, api = ncmApi, settingsStore = settingsStore)
+        NcmPlaybackSource(
+            songDao = songDao,
+            api = ncmApi,
+            sourceResolver = songSourceResolver,
+            settingsStore = settingsStore,
+        )
     }
 
     val localFirstResolver: LocalFirstResolver by lazy {

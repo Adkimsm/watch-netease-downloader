@@ -4,6 +4,9 @@ import io.github.adkimsm.neteasedownloader.data.SettingsStore
 import io.github.adkimsm.neteasedownloader.data.SongDao
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.NcmApi
+import io.github.adkimsm.neteasedownloader.net.unlock.SongQuery
+import io.github.adkimsm.neteasedownloader.net.unlock.SongSourceResolver
+import io.github.adkimsm.neteasedownloader.net.unlock.UnlockMode
 import io.github.adkimsm.neteasedownloader.net.normalizeDownloadUrl
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,6 +23,9 @@ import java.util.concurrent.ConcurrentHashMap
 class NcmPlaybackSource(
     private val songDao: SongDao,
     private val api: NcmApi,
+
+    /** 直链解析:官方优先、第三方兜底(播放路径的开关在 SettingsStore 里) */
+    private val sourceResolver: SongSourceResolver,
     private val settingsStore: SettingsStore,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : PlaybackSource {
@@ -40,7 +46,18 @@ class NcmPlaybackSource(
             urlCache[songId]?.let { if (it.expiresAt > clock()) return@withLock it.url }
 
             val level = settingsStore.streamLevel.value
-            val dto = api.fetchSongUrls(listOf(songId), level).firstOrNull { it.id == songId }
+            // 匹配第三方音源需要歌名/歌手/时长,本地库里就有
+            val meta = songDao.getByIds(listOf(songId)).firstOrNull()
+            val dto = if (meta != null) {
+                sourceResolver.fetchUrls(
+                    songs = listOf(SongQuery(meta.songId, meta.name, meta.artist, meta.duration)),
+                    level = level,
+                    mode = UnlockMode.STREAM,
+                ).firstOrNull()?.dto
+            } else {
+                // 库里没有元数据(理论上不该发生)时只问官方,不做第三方匹配
+                api.fetchSongUrls(listOf(songId), level).firstOrNull { it.id == songId }
+            }
             when {
                 dto == null -> {
                     Diag.w(TAG, "串流地址缺失 songId=$songId level=$level")
