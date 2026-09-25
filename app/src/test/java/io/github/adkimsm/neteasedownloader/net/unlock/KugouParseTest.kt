@@ -87,7 +87,15 @@ class KugouParseTest {
     @Test
     fun searchUrlEncodesKeyword() {
         val url = KugouProvider.buildSearchUrl(SongQuery(1, "晴天", "周杰伦", 0))
-        assertTrue(url.startsWith("http://songsearch.kugou.com/song_search_v2?"))
+        assertTrue(url.startsWith("https://songsearch.kugou.com/song_search_v2?"))
         assertTrue(url.contains("keyword=%E6%99%B4%E5%A4%A9+%E5%91%A8%E6%9D%B0%E4%BC%A6"))
+    }
+
+    /** 同 KuwoParseTest:端点必须 https,否则真机上被 Android 明文策略拦掉 */
+    @Test
+    fun endpointsAreHttps_becauseAndroidBlocksCleartext() {
+        val query = SongQuery(1, "晴天", "周杰伦", 0)
+        assertTrue(KugouProvider.buildSearchUrl(query).startsWith("https://"))
+        assertTrue(KugouProvider.buildTrackUrl("ABCDEF").startsWith("https://"))
     }
 }

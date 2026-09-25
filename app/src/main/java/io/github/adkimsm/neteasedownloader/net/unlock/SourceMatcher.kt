@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.net.unlock
 
 import io.github.adkimsm.neteasedownloader.diag.Diag
+import io.github.adkimsm.neteasedownloader.net.normalizeDownloadUrl
 
 /**
  * 音源匹配器:按优先级在多个音源里找出**一条真正能播**的直链。
@@ -47,7 +48,10 @@ class SourceMatcher(private val providers: List<SourceProvider>) {
 
             for ((candidate, score) in ranked.take(MAX_CANDIDATES_PER_PROVIDER)) {
                 val track = runCatching { provider.track(http, candidate) }.getOrNull() ?: continue
-                val probe = runCatching { http.probe(track.url) }.getOrNull() ?: continue
+                // 规范化后再探活:与下载/播放走同一份规则(一律 https、去掉冗余 :443)。
+                // 音源若返回 http,探活在真机上必失败(Android 禁明文),候选会被白白丢掉。
+                val url = normalizeDownloadUrl(track.url)
+                val probe = runCatching { http.probe(url) }.getOrNull() ?: continue
 
                 val size = maxOf(track.size, probe.totalBytes)
                 val br = if (track.br > 0) track.br else mp3Bitrate(probe.head) ?: 0L
@@ -58,7 +62,7 @@ class SourceMatcher(private val providers: List<SourceProvider>) {
                 )
                 return MatchedSource(
                     providerId = providerId,
-                    url = track.url,
+                    url = url,
                     size = size,
                     br = br,
                     md5 = track.md5 ?: probe.serverMd5,

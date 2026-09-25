@@ -69,14 +69,29 @@ class KuwoParseTest {
     fun buildUrls() {
         val query = SongQuery(songId = 1, name = "晴天", artist = "周杰伦", durationMs = 269_000)
         val search = KuwoProvider.buildSearchUrl(query)
-        assertTrue(search.startsWith("http://search.kuwo.cn/r.s?"))
+        assertTrue(search.startsWith("https://search.kuwo.cn/r.s?"))
         assertTrue(search.contains("SONGNAME=%E6%99%B4%E5%A4%A9"))
         assertTrue(search.contains("ARTIST=%E5%91%A8%E6%9D%B0%E4%BC%A6"))
 
         assertEquals(
-            "http://antiserver.kuwo.cn/anti.s?type=convert_url&format=mp3&response=url&rid=MUSIC_228908",
+            "https://antiserver.kuwo.cn/anti.s?type=convert_url&format=mp3&response=url&rid=MUSIC_228908",
             KuwoProvider.buildTrackUrl("228908"),
         )
+    }
+
+    /**
+     * 回归闸门:端点**必须**是 https。
+     *
+     * Android(targetSdk ≥ 28)默认禁止明文流量,http 会被直接拦掉
+     * (`CLEARTEXT communication ... not permitted by network security policy`)——
+     * 而这条只有真机会暴露:JVM 上的 live 测试没有这个策略,http 一样通。
+     * 所以这里用静态断言把 scheme 钉死,而不是指望 live 测试。
+     */
+    @Test
+    fun endpointsAreHttps_becauseAndroidBlocksCleartext() {
+        val query = SongQuery(songId = 1, name = "晴天", artist = "周杰伦", durationMs = 269_000)
+        assertTrue(KuwoProvider.buildSearchUrl(query).startsWith("https://"))
+        assertTrue(KuwoProvider.buildTrackUrl("228908").startsWith("https://"))
     }
 
     @Test

@@ -416,3 +416,11 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   `docker exec ... bash -lc 'UNLOCK_LIVE=1 cd ... && ./gradlew ...'` 只把变量绑给 `cd`,
   Gradle 与测试 JVM 都看不到它 —— 门控测试会静默 skip,看着"通过"其实一步没跑。
   要 `export`,或把赋值放在 `./gradlew` 前面。
+- **Android 默认禁明文,JVM live 测试抓不住**:`targetSdk ≥ 28` 时没有
+  `usesCleartextTraffic` / `networkSecurityConfig` 就会拦掉 `http://`
+  (`CLEARTEXT communication ... not permitted by network security policy`)。
+  解锁的四个音源接口最初写成了 `http://`,真机上酷我与酷狗搜索全部失败,
+  功能等于没装。四个 host 都有完整的 TLS 1.3 证书链(`Verify return code: 0`),
+  所以直接改 `https://`,不加明文白名单。音源返回的直链在探活前走
+  `normalizeDownloadUrl`(一律 https),与下载/播放同一份规则。
+  **回归闸门必须是 URL scheme 的静态断言**:JVM 上的 live 测试没有这条策略,http 一样通。

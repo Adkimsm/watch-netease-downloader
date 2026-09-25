@@ -26,6 +26,7 @@ class SongSourceResolverTest {
     )
 
     private fun usable(id: Long) = SongUrlDto(
+        // 官方直链不经过匹配器,原样透传(下载/播放侧各自会 normalizeDownloadUrl)
         id = id, url = "http://official/$id.mp3", br = 320_000, size = 9_000_000, md5 = "abc",
         type = "mp3", fee = 0, freeTrialInfo = null, level = "standard",
     )
@@ -33,6 +34,8 @@ class SongSourceResolverTest {
     private class FakeProvider(
         override val id: String,
         private val candidates: List<SourceCandidate>,
+        // 假音源故意返回 http:匹配器必须把它规范化成 https(见 SourceMatcherTest),
+        // 否则真机上探活会被 Android 明文策略拦掉、候选被白白丢掉
         private val trackUrl: String? = "http://thirdparty/$id.mp3",
     ) : SourceProvider {
         var searches = 0
@@ -85,7 +88,7 @@ class SongSourceResolverTest {
             .single()
 
         assertEquals(ProviderId.KUWO, result.providerId)
-        assertEquals("http://thirdparty/kuwo.mp3", result.dto.url)
+        assertEquals("https://thirdparty/kuwo.mp3", result.dto.url)
         assertEquals("替换来的条目必须显式可播", 0, result.dto.fee)
         assertNull("freeTrialInfo 必须清掉,否则上层仍判不可用", result.dto.freeTrialInfo)
         assertEquals("mp3", result.dto.type)

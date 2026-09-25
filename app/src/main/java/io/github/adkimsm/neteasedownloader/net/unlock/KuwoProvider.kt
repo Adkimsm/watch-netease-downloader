@@ -48,12 +48,12 @@ class KuwoProvider : SourceProvider {
         fun buildSearchUrl(query: SongQuery): String {
             val name = URLEncoder.encode(query.name, "UTF-8")
             val artist = URLEncoder.encode(query.artist, "UTF-8")
-            return "http://search.kuwo.cn/r.s?ft=music&rformat=json&encoding=utf8&rn=8" +
+            return "https://search.kuwo.cn/r.s?ft=music&rformat=json&encoding=utf8&rn=8" +
                 "&vipver=MUSIC_8.0.3.1&SONGNAME=$name&ARTIST=$artist"
         }
 
         fun buildTrackUrl(rid: String): String =
-            "http://antiserver.kuwo.cn/anti.s?type=convert_url&format=mp3&response=url&rid=MUSIC_$rid"
+            "https://antiserver.kuwo.cn/anti.s?type=convert_url&format=mp3&response=url&rid=MUSIC_$rid"
 
         /** 解析搜索响应。畸形输入一律返回空列表,不抛异常。 */
         fun parseSearch(body: String): List<SourceCandidate> {

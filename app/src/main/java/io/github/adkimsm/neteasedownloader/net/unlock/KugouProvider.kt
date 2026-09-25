@@ -53,10 +53,10 @@ class KugouProvider : SourceProvider {
         }
 
         fun buildSearchUrl(query: SongQuery): String =
-            "http://songsearch.kugou.com/song_search_v2?keyword=${URLEncoder.encode(query.keyword, "UTF-8")}&page=1"
+            "https://songsearch.kugou.com/song_search_v2?keyword=${URLEncoder.encode(query.keyword, "UTF-8")}&page=1"
 
         fun buildTrackUrl(hash: String): String =
-            "http://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=$hash"
+            "https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=$hash"
 
         /** 解析搜索响应。畸形输入一律返回空列表,不抛异常。 */
         fun parseSearch(body: String): List<SourceCandidate> {
