@@ -35,6 +35,7 @@ private fun Cursor.toSong(): SongEntity = SongEntity(
     state = getStringByName("state") ?: SongState.FAILED.name,
     errorCode = getStringByName("errorCode"),
     localUri = getStringByName("localUri"),
+    source = getStringByName("source"),
     updatedAt = getLongByName("updatedAt"),
 )
 
@@ -124,6 +125,7 @@ class SongDao(private val db: AppDatabase) {
                     put("state", s.state)
                     putIfNotNull("errorCode", s.errorCode)
                     putIfNotNull("localUri", s.localUri)
+                    putIfNotNull("source", s.source)
                     put("updatedAt", s.updatedAt)
                 }
                 insertWithOnConflict(
@@ -150,15 +152,16 @@ class SongDao(private val db: AppDatabase) {
         md5: String?,
         br: Long,
         type: String?,
+        source: String? = null,
         errorCode: String? = null,
     ) = withContext(Dispatchers.IO) {
         db.writableDatabase.execSQL(
             """
             UPDATE song SET state = ?, localUri = ?, size = ?, md5 = ?, br = ?, type = ?,
-            errorCode = ?, updatedAt = ? WHERE songId = ?
+            source = ?, errorCode = ?, updatedAt = ? WHERE songId = ?
             """.trimIndent(),
             arrayOf<Any?>(
-                state.name, localUri, size, md5, br, type, errorCode,
+                state.name, localUri, size, md5, br, type, source, errorCode,
                 System.currentTimeMillis(), songId,
             ),
         )
@@ -184,7 +187,7 @@ class SongDao(private val db: AppDatabase) {
         db.writableDatabase.inTransaction {
             ids.forEach { id ->
                 execSQL(
-                    "UPDATE song SET state = ?, localUri = NULL, md5 = NULL, size = 0, updatedAt = ? " +
+                    "UPDATE song SET state = ?, localUri = NULL, md5 = NULL, size = 0, source = NULL, updatedAt = ? " +
                         "WHERE songId = ?",
                     arrayOf<Any?>(SongState.PENDING.name, now, id),
                 )

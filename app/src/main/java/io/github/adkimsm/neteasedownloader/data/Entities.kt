@@ -47,6 +47,13 @@ data class SongEntity(
     val state: String, // SongState 名
     val errorCode: String? = null,
     val localUri: String? = null,
+    /**
+     * 这份本地文件来自哪个第三方音源(kuwo/kugou);null = 网易云原音源。
+     *
+     * 只在下载成功时写入,并随本地文件一起清除 —— 文件没了,来源标记也必须失效,
+     * 否则界面上会显示一个并不存在的来源。
+     */
+    val source: String? = null,
     val updatedAt: Long,
 ) {
     /** 本地文件可用(播放时"本地优先"的唯一判据) */

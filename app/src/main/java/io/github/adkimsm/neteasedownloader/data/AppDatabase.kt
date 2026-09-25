@@ -31,6 +31,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) migrateToV2(db)
+        if (oldVersion < 3) migrateToV3(db)
     }
 
     /**
@@ -49,6 +50,17 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    /**
+     * v2 → v3:给 song 补 source —— 这份本地文件是用哪个第三方音源下载的。
+     *
+     * 与 v2 同法:幂等,升级中断后重跑不会重复 ALTER。
+     */
+    private fun migrateToV3(db: SQLiteDatabase) {
+        if (!db.hasColumn(TABLE_SONG, "source")) {
+            db.execSQL("ALTER TABLE $TABLE_SONG ADD COLUMN source TEXT")
+        }
+    }
+
     private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
         rawQuery("PRAGMA table_info($table)", null).use { cursor ->
             val nameIndex = cursor.getColumnIndex("name")
@@ -61,9 +73,10 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DB_NAME = "watchmusic.db"
-        private const val DB_VERSION = 2
+        private const val DB_VERSION = 3
 
         private const val TABLE_PLAYLIST = "playlist"
+        private const val TABLE_SONG = "song"
 
         private val SQL_CREATE_PLAYLIST = """
             CREATE TABLE IF NOT EXISTS playlist (
@@ -92,6 +105,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 state TEXT NOT NULL,
                 errorCode TEXT,
                 localUri TEXT,
+                source TEXT,
                 updatedAt INTEGER NOT NULL
             )
         """.trimIndent()
