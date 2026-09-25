@@ -1,14 +1,13 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
+import io.github.adkimsm.neteasedownloader.ui.components.ElevatedCard
 import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
@@ -25,14 +25,11 @@ import io.github.adkimsm.neteasedownloader.ui.components.StatRow
 import io.github.adkimsm.neteasedownloader.ui.components.StatSkeleton
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedMuted
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
 
@@ -111,14 +108,7 @@ fun SyncPreviewScreen(
 @Composable
 private fun StorageCard(diff: SyncEngine.Diff, shortage: Boolean) {
     val sizing = LocalWindowSizing.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(AppShapes.Card)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Card)
-            .padding(Spacing.sm),
-    ) {
+    ElevatedCard(contentPadding = PaddingValues(Spacing.sm)) {
         Text(
             text = stringResource(
                 R.string.preview_storage,

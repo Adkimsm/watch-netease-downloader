@@ -1,17 +1,13 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -24,9 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -37,18 +31,15 @@ import io.github.adkimsm.neteasedownloader.library.RemoveScope
 import io.github.adkimsm.neteasedownloader.ui.components.ConfirmDialog
 import io.github.adkimsm.neteasedownloader.ui.components.CheckMark
 import io.github.adkimsm.neteasedownloader.ui.components.HDivider
+import io.github.adkimsm.neteasedownloader.ui.components.ListRow
 import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.SectionLabel
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
-import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -101,15 +92,16 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(sizing.gapSm))
 
-            SettingsStore.LEVELS.forEach { level ->
+            SettingsStore.LEVELS.forEachIndexed { index, level ->
                 QualityOption(
                     level = level,
                     selected = level == currentStreamLevel,
                     loading = false,
                     showCheck = level == currentStreamLevel && levelJustChanged,
+                    // 最后一项不画分隔线:紧随其后已是分区分隔线
+                    showDivider = index < SettingsStore.LEVELS.lastIndex,
                     onClick = { onStreamLevelChange(level) },
                 )
-                Spacer(Modifier.height(Dimens.CardSpacing))
             }
 
             Spacer(Modifier.height(sizing.gapMd))
@@ -126,13 +118,13 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(sizing.gapSm))
 
-            RemoveScope.entries.forEach { scope ->
+            RemoveScope.entries.forEachIndexed { index, scope ->
                 ScopeOption(
                     scope = scope,
                     selected = scope == removeScope,
+                    showDivider = index < RemoveScope.entries.lastIndex,
                     onClick = { onRemoveScopeChange(scope) },
                 )
-                Spacer(Modifier.height(Dimens.CardSpacing))
             }
 
             Spacer(Modifier.height(sizing.gapMd))
@@ -149,20 +141,20 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(sizing.gapSm))
 
-            SettingsStore.LEVELS.forEach { level ->
+            SettingsStore.LEVELS.forEachIndexed { index, level ->
                 QualityOption(
                     level = level,
                     selected = level == currentLevel,
                     // 音质写入很快,不做内联转圈;切换成功后短暂显示对勾作为确认
                     loading = false,
                     showCheck = level == currentLevel && levelJustChanged,
+                    showDivider = index < SettingsStore.LEVELS.lastIndex,
                     onClick = { onLevelChange(level) },
                 )
-                Spacer(Modifier.height(Dimens.CardSpacing))
             }
 
             if (playlistCount > 0) {
-                Spacer(Modifier.height(Dimens.CardSpacing))
+                Spacer(Modifier.height(sizing.gapSm))
                 Text(
                     text = stringResource(
                         R.string.settings_synced_playlists,
@@ -230,22 +222,19 @@ private fun QualityOption(
     selected: Boolean,
     loading: Boolean,
     showCheck: Boolean,
+    showDivider: Boolean,
     onClick: () -> Unit,
 ) {
     val sizing = LocalWindowSizing.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.touchTarget)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(
-                Dimens.GlassBorder,
-                if (selected) BrandRed else GlassHighlight,
-                AppShapes.Row,
-            )
-            .clickable(enabled = !loading, role = Role.RadioButton, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
+    // 选中态靠左侧红竖条 + 红淡底,不靠描边
+    ListRow(
+        minHeight = sizing.touchTarget,
+        selected = selected,
+        enabled = !loading,
+        onClick = onClick,
+        role = Role.RadioButton,
+        showDivider = showDivider,
+        contentPadding = PaddingValues(horizontal = 0.dp),
     ) {
         // 选中的品牌红竖条
         Box(
@@ -294,21 +283,20 @@ private fun QualityOption(
 
 /** 删除模式的一档 */
 @Composable
-private fun ScopeOption(scope: RemoveScope, selected: Boolean, onClick: () -> Unit) {
+private fun ScopeOption(
+    scope: RemoveScope,
+    selected: Boolean,
+    showDivider: Boolean,
+    onClick: () -> Unit,
+) {
     val sizing = LocalWindowSizing.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.touchTarget)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(
-                Dimens.GlassBorder,
-                if (selected) BrandRed else GlassHighlight,
-                AppShapes.Row,
-            )
-            .clickable(role = Role.RadioButton, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
+    ListRow(
+        minHeight = sizing.touchTarget,
+        selected = selected,
+        onClick = onClick,
+        role = Role.RadioButton,
+        showDivider = showDivider,
+        contentPadding = PaddingValues(horizontal = 0.dp),
     ) {
         Box(
             modifier = Modifier

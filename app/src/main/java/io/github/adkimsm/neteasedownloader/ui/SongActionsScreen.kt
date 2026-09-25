@@ -1,15 +1,10 @@
 package io.github.adkimsm.neteasedownloader.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -26,9 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -36,14 +29,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.player.Repeat
 import io.github.adkimsm.neteasedownloader.ui.components.HDivider
+import io.github.adkimsm.neteasedownloader.ui.components.ListRow
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
-import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -99,6 +89,8 @@ fun SongActionsScreen(
                 trailing = null,
                 onClick = onDelete,
                 destructive = true,
+                // 紧随其后的分区分隔线即本组的收尾线
+                showDivider = false,
             )
             Spacer(Modifier.size(sizing.gapSm))
             HDivider()
@@ -112,13 +104,13 @@ fun SongActionsScreen(
                 trailing = null,
                 onClick = onToggleLike,
             )
-            Spacer(Modifier.size(sizing.gapSm / 2))
             ActionRow(
                 icon = Icons.Filled.PlaylistAdd,
                 label = stringResource(R.string.actions_add_to_playlist),
                 trailing = null,
                 onClick = onAddToPlaylist,
                 chevron = true,
+                showDivider = false,
             )
 
             Spacer(Modifier.size(sizing.gapSm))
@@ -133,14 +125,12 @@ fun SongActionsScreen(
                     onClick = onOpenQueue,
                     chevron = true,
                 )
-                Spacer(Modifier.size(sizing.gapSm / 2))
                 ActionRow(
                     icon = Icons.Filled.Repeat,
                     label = stringResource(R.string.actions_repeat),
                     trailing = repeatLabel(currentRepeat),
                     onClick = onCycleRepeat,
                 )
-                Spacer(Modifier.size(sizing.gapSm / 2))
                 ActionRow(
                     icon = Icons.Filled.Repeat,
                     label = stringResource(R.string.actions_shuffle),
@@ -148,6 +138,8 @@ fun SongActionsScreen(
                         if (shuffle) R.string.common_on else R.string.common_off,
                     ),
                     onClick = onToggleShuffle,
+                    // 列表最后一行
+                    showDivider = false,
                 )
             } else {
                 Text(
@@ -180,19 +172,15 @@ internal fun ActionRow(
     destructive: Boolean = false,
     subtitle: String? = null,
     chevron: Boolean = false,
+    showDivider: Boolean = true,
 ) {
     val sizing = LocalWindowSizing.current
     val contentColor: Color = if (destructive) StateError else TextPrimary
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.menuRowHeight)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
-            .clickable(onClick = onClick)
-            .padding(horizontal = sizing.gapSm),
-        verticalAlignment = Alignment.CenterVertically,
+    ListRow(
+        minHeight = sizing.menuRowHeight,
+        onClick = onClick,
+        showDivider = showDivider,
+        contentPadding = PaddingValues(horizontal = sizing.gapSm),
     ) {
         Icon(
             imageVector = icon,

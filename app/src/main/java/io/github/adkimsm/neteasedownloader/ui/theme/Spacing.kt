@@ -45,12 +45,6 @@ object Dimens {
     /** 卡片内部内边距 */
     val CardPadding = 14.dp
 
-    /** 卡片/列表项之间的垂直间距 */
-    val CardSpacing = 10.dp
-
-    /** 毛玻璃描边宽度 */
-    val GlassBorder = 1.dp
-
     /**
      * 诊断页等宽字号。
      * 这是全应用唯一允许出现显式字号的地方 —— 诊断日志需要在一屏内塞下尽可能多的行,

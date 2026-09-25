@@ -1,18 +1,14 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,16 +32,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.ui.components.ErrorBanner
+import io.github.adkimsm.neteasedownloader.ui.components.ListRow
 import io.github.adkimsm.neteasedownloader.ui.components.PlaylistRow
 import io.github.adkimsm.neteasedownloader.ui.components.PlaylistSkeletonList
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel3
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -131,10 +125,7 @@ fun PlaylistScreen(
                 }
 
                 else -> {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing),
-                    ) {
+                    LazyColumn(modifier = Modifier.weight(1f)) {
                         if (likedEntry != null) {
                             item(key = "liked") { LikedEntryRow(likedEntry, onOpen = onOpenLiked) }
                         }
@@ -205,16 +196,10 @@ data class LikedEntry(val count: Int)
 @Composable
 private fun LikedEntryRow(entry: LikedEntry, onOpen: () -> Unit) {
     val sizing = LocalWindowSizing.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.touchTarget)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
-            .clickable(onClick = onOpen)
-            .padding(start = sizing.gapSm, top = Spacing.xs, end = sizing.gapSm, bottom = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+    ListRow(
+        minHeight = sizing.touchTarget,
+        onClick = onOpen,
+        contentPadding = PaddingValues(start = sizing.gapSm, top = Spacing.xs, bottom = Spacing.xs),
     ) {
         Box(
             modifier = Modifier
@@ -254,16 +239,12 @@ private fun LikedEntryRow(entry: LikedEntry, onOpen: () -> Unit) {
 @Composable
 private fun CreatePlaylistRow(onCreate: () -> Unit) {
     val sizing = LocalWindowSizing.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.touchTarget)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
-            .clickable(onClick = onCreate)
-            .padding(start = sizing.gapSm, top = Spacing.xs, end = sizing.gapSm, bottom = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+    // 新建入口固定排在列表最末,故不画自身分隔线
+    ListRow(
+        minHeight = sizing.touchTarget,
+        onClick = onCreate,
+        showDivider = false,
+        contentPadding = PaddingValues(start = sizing.gapSm, top = Spacing.xs, bottom = Spacing.xs),
     ) {
         Box(
             modifier = Modifier

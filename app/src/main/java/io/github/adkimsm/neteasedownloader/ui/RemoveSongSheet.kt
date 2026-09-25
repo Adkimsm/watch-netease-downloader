@@ -1,16 +1,13 @@
 package io.github.adkimsm.neteasedownloader.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,7 +19,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.adkimsm.neteasedownloader.R
@@ -34,17 +30,14 @@ import io.github.adkimsm.neteasedownloader.library.planFor
 import io.github.adkimsm.neteasedownloader.library.removeTargetCount
 import io.github.adkimsm.neteasedownloader.library.RemoveScope
 import io.github.adkimsm.neteasedownloader.ui.components.HDivider
+import io.github.adkimsm.neteasedownloader.ui.components.ListRow
 import io.github.adkimsm.neteasedownloader.ui.components.PrimaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.SecondaryButton
 import io.github.adkimsm.neteasedownloader.ui.components.TrackSkeletonList
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
-import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
-import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
 import io.github.adkimsm.neteasedownloader.ui.theme.TextDisabled
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -117,12 +110,14 @@ fun RemoveSongSheet(
                     )
                     Spacer(Modifier.height(sizing.gapSm / 2))
 
-                    presence.playlists.forEach { entry ->
+                    presence.playlists.forEachIndexed { index, entry ->
                         PlaylistPickRow(
                             entry = entry,
                             checked = entry.playlistId in selection.playlistIds,
                             // 他人歌单接口会拒绝,置灰并说明原因,而不是让用户勾了才失败
                             enabled = entry.owned && !selection.localOnly,
+                            // 最后一行后紧跟分区分隔线,不重复画线
+                            showDivider = index < presence.playlists.lastIndex,
                             onToggle = { checked ->
                                 val next = if (checked) {
                                     selection.playlistIds + entry.playlistId
@@ -149,10 +144,10 @@ fun RemoveSongSheet(
                         )
                     },
                 )
-                Spacer(Modifier.height(sizing.gapSm / 2))
                 ToggleRow(
                     text = stringResource(R.string.remove_keep_local),
                     checked = selection.keepLocal,
+                    showDivider = false,
                     onToggle = {
                         onSelectionChange(
                             selection.copy(keepLocal = !selection.keepLocal, localOnly = false),
@@ -198,19 +193,16 @@ private fun PlaylistPickRow(
     entry: PresenceEntry,
     checked: Boolean,
     enabled: Boolean,
+    showDivider: Boolean,
     onToggle: (Boolean) -> Unit,
 ) {
     val sizing = LocalWindowSizing.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.menuRowHeight)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
-            .clickable(enabled = enabled) { onToggle(!checked) }
-            .padding(end = sizing.gapSm),
-        verticalAlignment = Alignment.CenterVertically,
+    ListRow(
+        minHeight = sizing.menuRowHeight,
+        enabled = enabled,
+        onClick = { onToggle(!checked) },
+        showDivider = showDivider,
+        contentPadding = PaddingValues(end = sizing.gapSm),
     ) {
         Box(modifier = Modifier.size(sizing.touchTarget * 0.75f), contentAlignment = Alignment.Center) {
             Checkbox(
@@ -240,16 +232,16 @@ private fun PlaylistPickRow(
     }
 }
 
-/** 只读提示行 */
+/**
+ * 只读提示行。
+ * 不画底色:语义由 [color] 承载,扁平排版与列表行一致。
+ */
 @Composable
 private fun HintRow(text: String, color: androidx.compose.ui.graphics.Color) {
     val sizing = LocalWindowSizing.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .padding(sizing.gapSm),
     ) {
         Text(text = text, style = MaterialTheme.typography.bodySmall, color = color)
@@ -257,18 +249,18 @@ private fun HintRow(text: String, color: androidx.compose.ui.graphics.Color) {
 }
 
 @Composable
-private fun ToggleRow(text: String, checked: Boolean, onToggle: () -> Unit) {
+private fun ToggleRow(
+    text: String,
+    checked: Boolean,
+    onToggle: () -> Unit,
+    showDivider: Boolean = true,
+) {
     val sizing = LocalWindowSizing.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.menuRowHeight)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
-            .clickable(onClick = onToggle)
-            .padding(end = sizing.gapSm),
-        verticalAlignment = Alignment.CenterVertically,
+    ListRow(
+        minHeight = sizing.menuRowHeight,
+        onClick = onToggle,
+        showDivider = showDivider,
+        contentPadding = PaddingValues(end = sizing.gapSm),
     ) {
         Box(modifier = Modifier.size(sizing.touchTarget * 0.75f), contentAlignment = Alignment.Center) {
             Checkbox(

@@ -1,7 +1,6 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +27,6 @@ import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.SongEntity
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel2
@@ -42,7 +40,7 @@ import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
  * 手表上这条要尽量矮,把垂直空间留给列表。
  * [progressFraction] 非 null 时在条底画一条 2dp 品牌红进度线(播放位置反馈)。
  *
- * 毛玻璃卡片:圆角 + 1dp 高光描边,与列表行同语言。
+ * 常驻浮条:保留底色把它与列表区分开(列表行本身一律纯背景)。
  */
 @Composable
 fun MiniPlayerBar(
@@ -59,7 +57,6 @@ fun MiniPlayerBar(
             .fillMaxWidth()
             .clip(AppShapes.Row)
             .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
             .clickable(onClick = onClick),
     ) {
         Row(

@@ -4,19 +4,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
 /**
- * 统一圆角令牌:高级深色 + 圆角毛玻璃风格。
- *
- * 手表屏小,卡片圆角比手机更大以强化\"毛玻璃浮层\"感,但列表行圆角要克制,
- * 避免行内容被切掉。
+ * 卡片、控件与占位内容共用的圆角令牌。
+ * 普通列表行不叠加圆角底色,改用细分隔线;圆角只保留在独立卡片和控件上。
  */
 object AppShapes {
-    /** 列表行 / 输入项:小圆角,内容不拥挤 */
+    /** 小型控件 / 状态提示 / 骨架占位 */
     val Row = RoundedCornerShape(12.dp)
 
     /** 卡片 / 分组:中圆角 */
     val Card = RoundedCornerShape(16.dp)
 
-    /** 按钮 / 对话框 / 浮层:大圆角(毛玻璃感) */
+    /** 按钮 / 对话框 / 浮层 */
     val Control = RoundedCornerShape(20.dp)
 
     /** 圆形(播放键、封面、徽标点) */

@@ -1,7 +1,6 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,8 +22,6 @@ import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.library.RemoveOutcome
 import io.github.adkimsm.neteasedownloader.library.RemoveReport
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.StateError
@@ -65,11 +62,6 @@ fun DeleteResultBanner(
             .heightIn(min = sizing.bannerMinHeight)
             .clip(AppShapes.Row)
             .background(if (report.hasFailure) StateError.copy(alpha = 0.16f) else SurfaceLevel2)
-            .border(
-                Dimens.GlassBorder,
-                if (report.hasFailure) StateError else GlassHighlight,
-                AppShapes.Row,
-            )
             .padding(start = sizing.gapSm, end = sizing.gapSm / 2),
         verticalAlignment = Alignment.CenterVertically,
     ) {

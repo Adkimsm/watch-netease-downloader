@@ -68,13 +68,14 @@ fun PlaylistMenuScreen(
                 onClick = onRename,
                 chevron = true,
             )
-            Spacer(Modifier.size(sizing.gapSm / 2))
             ActionRow(
                 icon = Icons.Filled.DeleteOutline,
                 label = stringResource(R.string.playlist_delete),
                 trailing = null,
                 onClick = { confirmDelete = true },
                 destructive = true,
+                // 列表最后一行
+                showDivider = false,
             )
         }
     }

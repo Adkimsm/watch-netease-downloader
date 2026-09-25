@@ -9,7 +9,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 /**
  * 仅深色方案:手表上深色更省电,且无跟随系统亮色的需求。
  *
- * 风格:高级深色 + 圆角毛玻璃。配色偏暗红黑,控件统一走 [AppShapes] 圆角。
+ * 深色列表以分隔线区分条目;独立卡片与控件使用 [AppShapes] 圆角。
  */
 private val MaterialShapes = Shapes(
     extraSmall = AppShapes.Row,
@@ -39,7 +39,7 @@ private val DarkColors = darkColorScheme(
     surfaceContainerHighest = SurfaceLevel4,
 
     outline = Divider,
-    outlineVariant = GlassHighlight,
+    outlineVariant = SurfaceLevel3,
 
     error = StateError,
     onError = TextPrimary,

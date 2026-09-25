@@ -1,7 +1,6 @@
 package io.github.adkimsm.neteasedownloader.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -35,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.adkimsm.neteasedownloader.R
@@ -47,8 +44,6 @@ import io.github.adkimsm.neteasedownloader.player.canSkipPrevious
 import io.github.adkimsm.neteasedownloader.ui.components.ErrorBanner
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
-import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
@@ -113,7 +108,6 @@ fun NowPlayingScreen(
                     .fillMaxWidth()
                     .clip(AppShapes.Card)
                     .background(SurfaceLevel2)
-                    .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Card)
                     .clickable(onClick = onMore)
                     .padding(vertical = sizing.gapSm, horizontal = sizing.gapSm),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -238,7 +232,6 @@ private fun TransportRow(
                 .size(sizing.playerControl)
                 .clip(AppShapes.Circle)
                 .background(BrandRed)
-                .border(2.dp, GlassHighlight, AppShapes.Circle)
                 .clickable(onClick = onTogglePlayPause),
             contentAlignment = Alignment.Center,
         ) {

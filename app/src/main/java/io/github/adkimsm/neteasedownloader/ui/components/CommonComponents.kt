@@ -1,12 +1,13 @@
 package io.github.adkimsm.neteasedownloader.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,10 +36,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -46,10 +47,8 @@ import coil.compose.AsyncImage
 import io.github.adkimsm.neteasedownloader.R
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
-import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedGradientEnd
-import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedGradientStart
+import io.github.adkimsm.neteasedownloader.ui.theme.BrandRedMuted
 import io.github.adkimsm.neteasedownloader.ui.theme.Dimens
-import io.github.adkimsm.neteasedownloader.ui.theme.GlassHighlight
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
@@ -66,7 +65,8 @@ import io.github.adkimsm.neteasedownloader.ui.theme.WindowSizing
 /**
  * 跨屏复用组件。抽出这些是为了消除原先每屏各写一遍页面内边距与加载转圈的重复与不一致。
  *
- * 风格:高级深色 + 圆角毛玻璃 —— 卡片带 1dp 高光描边,按钮用品牌红渐变。
+ * 视觉约定:列表行一律纯背景 + 1dp 分隔线([ListRow]);只有真实卡片/浮层用
+ * [ElevatedCard] 带底色。状态不靠描边表达,靠品牌红淡底 + 文字/图标。
  */
 
 /**
@@ -134,30 +134,76 @@ fun ScreenScaffold(
     }
 }
 
-/** 毛玻璃卡片底:圆角 + 1dp 高光描边 + 抬升底色 */
+/**
+ * 扁平列表行。行回归纯背景,靠 1dp 分隔线区分 ——
+ * 不再有浅色卡片底与描边(小屏上每行一个盒子会显得发灰且噪声大)。
+ *
+ * 统一承担行高下限、整行点击、选中底色与分隔线,避免各屏重复写这四件事。
+ * [showDivider] 为 false 时跳过自身分隔线:用于紧邻已存在 `HDivider()` 的行,
+ * 以及整个列表的最后一行,避免出现双线。
+ */
 @Composable
-fun GlassCard(
+fun ListRow(
+    modifier: Modifier = Modifier,
+    minHeight: Dp = Dimens.TouchTarget,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    onClick: (() -> Unit)? = null,
+    role: Role? = null,
+    showDivider: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = Spacing.sm),
+    content: @Composable RowScope.() -> Unit,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = minHeight)
+                // 选中/当前态用品牌红淡底,不靠描边传递状态
+                .then(if (selected) Modifier.background(BrandRedMuted) else Modifier)
+                .then(
+                    if (onClick != null) {
+                        Modifier.clickable(enabled = enabled, role = role, onClick = onClick)
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(contentPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
+        // 分隔线不吃 contentPadding,保持通栏
+        if (showDivider) HDivider()
+    }
+}
+
+/**
+ * 独立卡片使用表面底色与圆角,不画高光描边;普通列表行使用 [ListRow]。
+ * [contentPadding] 可按窗口大小调整,避免共用容器后改变小屏内容的可用宽度。
+ */
+@Composable
+fun ElevatedCard(
     modifier: Modifier = Modifier,
     container: Color = SurfaceLevel2,
     onClick: (() -> Unit)? = null,
-    content: @Composable () -> Unit,
+    contentPadding: PaddingValues = PaddingValues(Dimens.CardPadding),
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     val base = modifier
         .fillMaxWidth()
         .clip(AppShapes.Card)
         .background(container)
-        .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Card)
     val clickable = if (onClick != null) base.clickable(onClick = onClick) else base
-    Box(
-        modifier = clickable.padding(Dimens.CardPadding),
-        contentAlignment = Alignment.CenterStart,
-    ) { content() }
+    Column(
+        modifier = clickable.padding(contentPadding),
+        content = content,
+    )
 }
 
 /**
  * 主操作按钮。[loading] 为 true 时按钮内联转圈并自动禁用 ——
  * 全应用的主操作反馈统一走这里,不再各屏手写小转圈。
- * 使用品牌红渐变背景 + 大圆角,强化主操作。
+ * 使用品牌红实色与统一圆角,突出主操作。
  */
 @Composable
 fun PrimaryButton(
@@ -193,50 +239,6 @@ fun PrimaryButton(
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-/** 渐变主操作按钮:背景用品牌红渐变(毛玻璃高光版) */
-@Composable
-fun GradientPrimaryButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    loading: Boolean = false,
-) {
-    val sizing = LocalWindowSizing.current
-    val brush = Brush.horizontalGradient(
-        listOf(BrandRedGradientStart, BrandRedGradientEnd),
-    )
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.primaryButtonHeight)
-            .clip(AppShapes.Control)
-            .then(
-                if (enabled && !loading) Modifier.background(brush)
-                else Modifier.background(SurfaceLevel3),
-            )
-            .clickable(enabled = enabled && !loading, onClick = onClick)
-            .padding(horizontal = sizing.gapMd),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (loading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(sizing.iconSize),
-                strokeWidth = 2.dp,
-                color = TextPrimary,
-            )
-        } else {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (enabled) TextPrimary else TextDisabled,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -463,9 +465,9 @@ fun ErrorBanner(
 /**
  * 歌单行:行首勾选位 + 圆形封面 + 名称/曲数。
  *
- * 整行可点切换勾选(而非只点 Checkbox),手表上更易命中。
+ * 点击行打开歌单,仅勾选框或封面角标切换是否同步。
  * [toggleLoading] 为该行写库中的加载态。
- * 毛玻璃卡片行:圆角 + 高光描边 + 抬升底色。
+ * 扁平行:纯背景 + 1dp 分隔线,由 [ListRow] 承载。
  */
 @Composable
 fun PlaylistRow(
@@ -475,24 +477,22 @@ fun PlaylistRow(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
     toggleLoading: Boolean = false,
+    showDivider: Boolean = true,
 ) {
     val sizing = LocalWindowSizing.current
     // 小屏上一行要同时放下勾选位、封面和两行文字:
     // 勾选标记改画在封面右下角的小圆点上,省掉独立的勾选槽位。
     val showStandaloneCheckbox = sizing.windowClass != WindowClass.Compact
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = sizing.touchTarget)
-            .clip(AppShapes.Row)
-            .background(SurfaceLevel2)
-            .border(Dimens.GlassBorder, GlassHighlight, AppShapes.Row)
-            // 点**行**进歌单详情;点**勾选框/角标**才切换是否纳入同步。
-            // 播放器里"进歌单听歌"是主操作,不该和"是否下载"共用同一个手势。
-            .clickable(enabled = !toggleLoading, onClick = onOpen)
-            .padding(vertical = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+    // 点**行**进歌单详情;点**勾选框/角标**才切换是否纳入同步。
+    // 播放器里"进歌单听歌"是主操作,不该和"是否下载"共用同一个手势。
+    ListRow(
+        modifier = modifier,
+        minHeight = sizing.touchTarget,
+        enabled = !toggleLoading,
+        onClick = onOpen,
+        showDivider = showDivider,
+        contentPadding = PaddingValues(vertical = Spacing.xs),
     ) {
         if (showStandaloneCheckbox) {
             Box(
