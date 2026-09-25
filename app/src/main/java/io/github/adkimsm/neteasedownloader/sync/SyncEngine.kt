@@ -17,7 +17,10 @@ import io.github.adkimsm.neteasedownloader.data.SongState
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.Downloader
 import io.github.adkimsm.neteasedownloader.net.NcmApi
-import io.github.adkimsm.neteasedownloader.net.SongUrlDto
+import io.github.adkimsm.neteasedownloader.net.unlock.ResolvedUrl
+import io.github.adkimsm.neteasedownloader.net.unlock.SongQuery
+import io.github.adkimsm.neteasedownloader.net.unlock.SongSourceResolver
+import io.github.adkimsm.neteasedownloader.net.unlock.UnlockMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -45,6 +48,9 @@ class StorageShortageException(val estimated: Long, val available: Long) :
 class SyncEngine(
     private val context: Context,
     private val api: NcmApi,
+
+    /** 歌曲直链解析:官方优先、第三方兜底。下载路径的开关在 SettingsStore 里 */
+    private val sourceResolver: SongSourceResolver,
     private val cookieStore: CookieStore,
     private val settingsStore: SettingsStore,
     private val playlistDao: PlaylistDao,
@@ -78,6 +84,9 @@ class SyncEngine(
         val missingUrlCount: Int,
         val estimatedBytes: Long,
         val availableBytes: Long,
+
+        /** 本轮用第三方音源替换的曲目数(0 = 全部来自网易云) */
+        val unlockedCount: Int = 0,
     )
 
     private val _progress = MutableStateFlow(Progress(Stage.IDLE, ""))
@@ -96,7 +105,7 @@ class SyncEngine(
      */
     val lastDiff = _lastDiff.asStateFlow()
 
-    private val urlCache = HashMap<Long, SongUrlDto>()
+    private val urlCache = HashMap<Long, ResolvedUrl>()
 
     private val downloadClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -282,38 +291,48 @@ class SyncEngine(
 
         // 批量取下载地址,不可用的(无 url / 仅试听)标记 MISSING_URL
         var missingUrlCount = 0
+        var unlockedCount = 0
         val level = settingsStore.level.value
         val withUrl = mutableListOf<SongEntity>()
         if (pending.isNotEmpty()) {
-            val urlMap = api.fetchSongUrls(pending.map { it.songId }, level).associateBy { it.id }
-            val now = System.currentTimeMillis()
+            val resolved = sourceResolver.fetchUrls(
+                songs = pending.map { it.toQuery() },
+                level = level,
+                mode = UnlockMode.DOWNLOAD,
+            ).associateBy { it.dto.id }
             pending.forEach { song ->
-                val urlDto = urlMap[song.songId]
-                val usable = urlDto?.url != null && urlDto.freeTrialInfo == null
-                if (usable) {
-                    urlCache[song.songId] = urlDto
-                    withUrl += song
-                    songDao.updateLocalResult(
-                        songId = song.songId,
-                        state = SongState.PENDING,
-                        localUri = song.localUri,
-                        size = urlDto.size,
-                        md5 = urlDto.md5,
-                        br = urlDto.br,
-                        type = urlDto.type,
-                    )
-                } else {
+                val entry = resolved[song.songId]
+                val urlDto = entry?.dto
+                if (entry == null || urlDto == null) {
+                    missingUrlCount++
+                    songDao.updateState(song.songId, SongState.MISSING_URL, "NO_URL")
+                    return@forEach
+                }
+                if (urlDto.url.isNullOrEmpty() || urlDto.freeTrialInfo != null) {
                     missingUrlCount++
                     songDao.updateState(
                         song.songId,
                         SongState.MISSING_URL,
-                        errorCode = if (urlDto?.url == null) "NO_URL" else "TRIAL_ONLY",
+                        errorCode = if (urlDto.url == null) "NO_URL" else "TRIAL_ONLY",
                     )
+                    return@forEach
                 }
+                urlCache[song.songId] = entry
+                if (entry.providerId != null) unlockedCount++
+                withUrl += song
+                songDao.updateLocalResult(
+                    songId = song.songId,
+                    state = SongState.PENDING,
+                    localUri = song.localUri,
+                    size = urlDto.size,
+                    md5 = urlDto.md5,
+                    br = urlDto.br,
+                    type = urlDto.type,
+                )
             }
         }
 
-        val estimated = urlCache.values.sumOf { it.size }
+        val estimated = urlCache.values.sumOf { it.dto.size }
         val available = availableBytes()
         if (estimated > available * SPACE_MARGIN) {
             throw StorageShortageException(estimated, available)
@@ -322,19 +341,30 @@ class SyncEngine(
         _progress.value = Progress(Stage.READY, "比对完成")
         Diag.i(
             TAG_ENGINE,
-            "diff: 待下载=${withUrl.size}, 待删除=${toDelete.size}, " +
+            "diff: 待下载=${withUrl.size}(第三方替换=$unlockedCount), 待删除=${toDelete.size}, " +
                 "缺失url=${missingUrlCount}, 预估=${estimated / MB}MB, 可用=${available / MB}MB",
         )
-        return Diff(withUrl, toDelete, missingUrlCount, estimated, available)
+        return Diff(
+            toDownload = withUrl,
+            toDelete = toDelete,
+            missingUrlCount = missingUrlCount,
+            estimatedBytes = estimated,
+            availableBytes = available,
+            unlockedCount = unlockedCount,
+        )
     }
 
     private suspend fun downloadSong(song: SongEntity) {
-        val urlDto = urlCache[song.songId] ?: run {
-            // 缓存丢失(进程被杀后断点续传),重新取这首的地址
-            api.fetchSongUrls(listOf(song.songId), settingsStore.level.value)
-                .firstOrNull { it.id == song.songId }
+        val resolvedUrl = urlCache[song.songId] ?: run {
+            // 缓存丢失(进程被杀后断点续传),重新取这首的地址(第三方替换一并重试)
+            sourceResolver.fetchUrls(
+                songs = listOf(song.toQuery()),
+                level = settingsStore.level.value,
+                mode = UnlockMode.DOWNLOAD,
+            ).firstOrNull { it.dto.id == song.songId }
                 ?.also { urlCache[song.songId] = it }
         }
+        val urlDto = resolvedUrl?.dto
         if (urlDto?.url == null || urlDto.freeTrialInfo != null) {
             songDao.updateState(song.songId, SongState.MISSING_URL, "NO_URL")
             Diag.w(TAG_ENGINE, "下载跳过 ${song.songId} 缺url/试听")
@@ -393,6 +423,7 @@ class SyncEngine(
                         md5 = result.md5 ?: urlDto.md5,
                         br = urlDto.br,
                         type = urlDto.type,
+                        source = resolvedUrl?.providerId,
                     )
                     return
                 } ?: throw FileNotFoundException("无法打开 MediaStore 输出流")
@@ -544,3 +575,14 @@ class SyncEngine(
         private const val SPACE_MARGIN = 0.95 // 可用空间需覆盖 95% 的预估占用才放行
     }
 }
+
+/**
+ * 本地库里的元数据就是匹配第三方音源所需的全部信息 —— 不必为匹配再多打一次网易云
+ * 的歌曲详情接口(参考实现要那么做,是因为代理层手里只有一个 id)。
+ */
+private fun SongEntity.toQuery() = SongQuery(
+    songId = songId,
+    name = name,
+    artist = artist,
+    durationMs = duration,
+)

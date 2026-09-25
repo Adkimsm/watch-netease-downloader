@@ -19,12 +19,20 @@ import io.github.adkimsm.neteasedownloader.data.SettingsStore
 import io.github.adkimsm.neteasedownloader.data.SongDao
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.net.NcmApi
+import io.github.adkimsm.neteasedownloader.net.unlock.KugouProvider
+import io.github.adkimsm.neteasedownloader.net.unlock.KuwoProvider
+import io.github.adkimsm.neteasedownloader.net.unlock.OkHttpProviderHttp
+import io.github.adkimsm.neteasedownloader.net.unlock.SongSourceResolver
+import io.github.adkimsm.neteasedownloader.net.unlock.SourceMatcher
+import io.github.adkimsm.neteasedownloader.net.unlock.UnlockMode
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
 import io.github.adkimsm.neteasedownloader.player.LocalFirstResolver
 import io.github.adkimsm.neteasedownloader.player.NcmPlaybackSource
 import io.github.adkimsm.neteasedownloader.player.PlaybackRepository
 import io.github.adkimsm.neteasedownloader.player.QueueStore
 import io.github.adkimsm.neteasedownloader.player.PlaybackUri
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,10 +56,48 @@ class App : Application() {
     }
     val mediaStoreWriter: MediaStoreWriter by lazy { MediaStoreWriter(this) }
     val settingsStore: SettingsStore by lazy { SettingsStore(this, appScope) }
+
+    // ---------- 灰色歌曲解锁(第三方音源) ----------
+
+    /** 第三方音源请求:5s 超时 + 10s 整体上限 —— 匹配不到就快点跳过,不能拖住同步 */
+    private val providerHttp: OkHttpProviderHttp by lazy {
+        OkHttpProviderHttp(
+            OkHttpClient.Builder()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.SECONDS)
+                .callTimeout(10, TimeUnit.SECONDS)
+                .build(),
+        )
+    }
+
+    private val sourceMatcher: SourceMatcher by lazy {
+        SourceMatcher(listOf(KuwoProvider(), KugouProvider()))
+    }
+
+    /**
+     * 官方直链与第三方替换的唯一入口。下载与播放各自读自己的开关:
+     * 串流不落盘、可即时反悔;下载会产出永久文件,所以两者分开。
+     */
+    val songSourceResolver: SongSourceResolver by lazy {
+        SongSourceResolver(
+            official = ncmApi::fetchSongUrls,
+            matcher = sourceMatcher,
+            http = providerHttp,
+            enabled = { mode ->
+                when (mode) {
+                    UnlockMode.DOWNLOAD -> settingsStore.unlockDownload.value
+                    UnlockMode.STREAM -> settingsStore.unlockStream.value
+                }
+            },
+            activeProviderIds = { settingsStore.activeProviderIds() },
+        )
+    }
+
     val syncEngine: SyncEngine by lazy {
         SyncEngine(
             context = this,
             api = ncmApi,
+            sourceResolver = songSourceResolver,
             cookieStore = cookieStore,
             settingsStore = settingsStore,
             playlistDao = playlistDao,
@@ -134,7 +180,17 @@ class App : Application() {
         Diag.initialize(this)
         installCrashHandler()
         cookieStore = CookieStore.fromContext(this, appScope)
-        ncmApi = NcmApi(cookieStore)
+        ncmApi = NcmApi(
+            cookieProvider = cookieStore,
+            // 地区解锁默认关;打开后每个 eapi 请求都带 X-Real-IP
+            extraHeaders = {
+                if (settingsStore.spoofRealIp.value) {
+                    mapOf("X-Real-IP" to NcmApi.REGION_UNLOCK_IP)
+                } else {
+                    emptyMap()
+                }
+            },
+        )
         appScope.launch {
             cookieStore.init()
             Diag.i("App", "cookie init 完成,已登录=${cookieStore.isLoggedIn()}")
