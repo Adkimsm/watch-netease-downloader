@@ -11,6 +11,7 @@ import android.database.sqlite.SQLiteOpenHelper
  *  - song:歌曲元数据 + 本地下载状态
  *  - playlist_song:歌单与歌曲的多对多关联(同步差量的基准)
  *  - liked_song:红心歌曲(增删走 radio/like,与歌单曲目接口分开)
+ *  - pending_removal / pending_removal_playlist:离线删除时排队的**远端**待办(歌单移除 + 取消红心)
  *
  * 建表 SQL 抽成常量:onCreate 与 onUpgrade 共用同一份定义,避免两条路径漂移。
  */
@@ -27,11 +28,14 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         db.execSQL(SQL_CREATE_PLAYLIST_SONG_INDEX)
         db.execSQL(SQL_CREATE_LIKED_SONG)
         db.execSQL(SQL_CREATE_LIKED_SONG_INDEX)
+        db.execSQL(SQL_CREATE_PENDING_REMOVAL)
+        db.execSQL(SQL_CREATE_PENDING_REMOVAL_PLAYLIST)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) migrateToV2(db)
         if (oldVersion < 3) migrateToV3(db)
+        if (oldVersion < 4) migrateToV4(db)
     }
 
     /**
@@ -61,6 +65,16 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    /**
+     * v3 → v4:新增离线删除的远端待办队列(两张表,见 [SQL_CREATE_PENDING_REMOVAL])。
+     *
+     * 与前两次迁移同法:幂等,升级中断后重跑不会重复建表。
+     */
+    private fun migrateToV4(db: SQLiteDatabase) {
+        db.execSQL(SQL_CREATE_PENDING_REMOVAL)
+        db.execSQL(SQL_CREATE_PENDING_REMOVAL_PLAYLIST)
+    }
+
     private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
         rawQuery("PRAGMA table_info($table)", null).use { cursor ->
             val nameIndex = cursor.getColumnIndex("name")
@@ -73,7 +87,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DB_NAME = "watchmusic.db"
-        private const val DB_VERSION = 3
+        private const val DB_VERSION = 4
 
         private const val TABLE_PLAYLIST = "playlist"
         private const val TABLE_SONG = "song"
@@ -131,6 +145,28 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
         private const val SQL_CREATE_LIKED_SONG_INDEX =
             "CREATE INDEX IF NOT EXISTS idx_liked_song_at ON liked_song(likedAt)"
+
+        /**
+         * 离线删除的远端待办:一行一首歌。
+         *
+         * 歌单目标另放一张关联表而不是塞进 TEXT 列 —— 与 playlist_song 同构,
+         * 免去分隔符解析,部分成功后的清理就是一条 DELETE。
+         */
+        private val SQL_CREATE_PENDING_REMOVAL = """
+            CREATE TABLE IF NOT EXISTS pending_removal (
+                songId INTEGER PRIMARY KEY,
+                unlike INTEGER NOT NULL DEFAULT 0,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent()
+
+        private val SQL_CREATE_PENDING_REMOVAL_PLAYLIST = """
+            CREATE TABLE IF NOT EXISTS pending_removal_playlist (
+                songId INTEGER NOT NULL,
+                playlistId INTEGER NOT NULL,
+                PRIMARY KEY (songId, playlistId)
+            )
+        """.trimIndent()
     }
 }
 

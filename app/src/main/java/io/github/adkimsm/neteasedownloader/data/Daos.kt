@@ -2,6 +2,7 @@ package io.github.adkimsm.neteasedownloader.data
 
 import android.content.ContentValues
 import android.database.Cursor
+import io.github.adkimsm.neteasedownloader.library.PendingRemoval
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 /** SQLite 绑定变量上限的保守取值;单条 IN 查询的 id 数量不得超过它 */
@@ -362,6 +363,93 @@ class LikedSongDao(private val db: AppDatabase) {
         db.readableDatabase
             .rawQuery("SELECT 1 FROM liked_song WHERE songId = ? LIMIT 1", arrayOf(songId.toString()))
             .use { cursor -> cursor.moveToFirst() }
+    }
+}
+
+/**
+ * 「离线删除」的远端待办队列。
+ *
+ * 一行一首歌(主表)+ 一行一个歌单目标(关联表)。读取时把两张表拼回 [PendingRemoval] ——
+ * 队列规模就是「用户离线时删了几首」,几十行级别,一次全读比按需查询好理解得多。
+ */
+class PendingRemovalDao(private val db: AppDatabase) {
+    /** 全部待办,按入队时间排序(先删的先执行) */
+    suspend fun all(): List<PendingRemoval> = withContext(Dispatchers.IO) {
+        db.readableDatabase.rawQuery(SQL_SELECT_ALL, null).use { cursor ->
+            val songIdIndex = cursor.getColumnIndexOrThrow("songId")
+            val unlikeIndex = cursor.getColumnIndexOrThrow("unlike")
+            val createdAtIndex = cursor.getColumnIndexOrThrow("createdAt")
+            val playlistIdIndex = cursor.getColumnIndexOrThrow("playlistId")
+            val out = LinkedHashMap<Long, PendingRemoval>()
+            while (cursor.moveToNext()) {
+                val songId = cursor.getLong(songIdIndex)
+                // 只有红心、没有歌单目标的条目在 LEFT JOIN 里 playlistId 为 NULL
+                val playlistId = if (cursor.isNull(playlistIdIndex)) {
+                    null
+                } else {
+                    cursor.getLong(playlistIdIndex)
+                }
+                val current = out[songId]
+                out[songId] = if (current == null) {
+                    PendingRemoval(
+                        songId = songId,
+                        playlistIds = listOfNotNull(playlistId),
+                        unlike = cursor.getInt(unlikeIndex) != 0,
+                        createdAt = cursor.getLong(createdAtIndex),
+                    )
+                } else {
+                    current.copy(playlistIds = current.playlistIds + listOfNotNull(playlistId))
+                }
+            }
+            out.values.toList()
+        }
+    }
+
+    /**
+     * 写入一条待办的**完整**状态(有则覆盖,无则新建)。
+     *
+     * 入队与「执行完回写剩余部分」都走这里,于是合并策略只需要在纯函数里写一次 ——
+     * 覆盖语义天然幂等:中途被杀重跑不会多删也不会少删。
+     */
+    suspend fun upsert(entry: PendingRemoval) = withContext(Dispatchers.IO) {
+        db.writableDatabase.inTransaction {
+            execSQL(
+                "INSERT OR REPLACE INTO pending_removal (songId, unlike, createdAt) VALUES (?, ?, ?)",
+                arrayOf<Any>(entry.songId, if (entry.unlike) 1 else 0, entry.createdAt),
+            )
+            execSQL("DELETE FROM pending_removal_playlist WHERE songId = ?", arrayOf<Any>(entry.songId))
+            entry.playlistIds.distinct().forEach { playlistId ->
+                execSQL(
+                    "INSERT OR IGNORE INTO pending_removal_playlist (songId, playlistId) VALUES (?, ?)",
+                    arrayOf<Any>(entry.songId, playlistId),
+                )
+            }
+        }
+    }
+
+    suspend fun deleteSong(songId: Long) = withContext(Dispatchers.IO) {
+        db.writableDatabase.inTransaction {
+            execSQL("DELETE FROM pending_removal_playlist WHERE songId = ?", arrayOf<Any>(songId))
+            execSQL("DELETE FROM pending_removal WHERE songId = ?", arrayOf<Any>(songId))
+        }
+    }
+
+    suspend fun deleteAll() = withContext(Dispatchers.IO) {
+        db.writableDatabase.inTransaction {
+            execSQL("DELETE FROM pending_removal_playlist")
+            execSQL("DELETE FROM pending_removal")
+        }
+    }
+
+    private companion object {
+        /** LEFT JOIN 保证「只有红心、没有歌单目标」的条目也在结果里 */
+        const val SQL_SELECT_ALL = """
+            SELECT r.songId AS songId, r.unlike AS unlike, r.createdAt AS createdAt,
+                   l.playlistId AS playlistId
+            FROM pending_removal r
+            LEFT JOIN pending_removal_playlist l ON l.songId = r.songId
+            ORDER BY r.createdAt, r.songId, l.playlistId
+        """
     }
 }
 
