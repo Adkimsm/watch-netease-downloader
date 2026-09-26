@@ -1,11 +1,12 @@
 package io.github.adkimsm.neteasedownloader.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,7 @@ import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.components.StateBadge
 import io.github.adkimsm.neteasedownloader.ui.components.TrackSkeletonList
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.Motion
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateInfo
 import io.github.adkimsm.neteasedownloader.ui.theme.StateOk
@@ -75,37 +77,49 @@ fun PlaylistDetailScreen(
                 Spacer(Modifier.height(sizing.gapSm))
             }
 
-            when {
-                // 骨架屏优先于空态:否则首次进入会先闪一下"没有歌曲"
-                loading && tracks.isEmpty() -> TrackSkeletonList(modifier = Modifier.weight(1f))
+            // 骨架屏 -> 真实列表/空态:三种形态之间淡入淡出,不再硬切。
+            // 骨架屏本身仍由 rememberDelayedVisibility 延迟出现(SkeletonDelayMs),
+            // 这里只负责「已经显示之后」的切换,不影响快操作不闪屏的约定。
+            Crossfade(
+                targetState = listContentState(loading, tracks.isEmpty()),
+                modifier = Modifier.weight(1f),
+                animationSpec = tween(Motion.ContentDurationMs),
+                label = "detailContent",
+            ) { contentState ->
+                when (contentState) {
+                    // 骨架屏优先于空态:否则首次进入会先闪一下"没有歌曲"
+                    ListContentState.Loading ->
+                        TrackSkeletonList(modifier = Modifier.fillMaxSize())
 
-                tracks.isEmpty() -> Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = stringResource(R.string.detail_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-
-                else -> LazyColumn(modifier = Modifier.weight(1f)) {
-                    itemsIndexed(tracks, key = { _, song -> song.songId }) { index, song ->
-                        TrackRow(
-                            song = song,
-                            streamFallback = streamFallback,
-                            playable = isPlayable(song, streamFallback),
-                            pending = song.songId in pendingSongIds,
-                            pendingRemoval = song.songId in pendingRemovalIds,
-                            // 最后一行不画分隔线,避免列表尾部多出一条线
-                            showDivider = index < tracks.lastIndex,
-                            onClick = { onPlayTrack(index) },
-                            onActions = { onTrackActions(song.songId) },
+                    ListContentState.Empty -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.detail_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center,
                         )
+                    }
+
+                    ListContentState.Content -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        itemsIndexed(tracks, key = { _, song -> song.songId }) { index, song ->
+                            TrackRow(
+                                // 删歌后剩余行平滑上移,不再"啪"地跳一格。
+                                // key 已是 songId,位置动画才有稳定的身份可依。
+                                modifier = Modifier.animateItem(),
+                                song = song,
+                                streamFallback = streamFallback,
+                                playable = isPlayable(song, streamFallback),
+                                pending = song.songId in pendingSongIds,
+                                pendingRemoval = song.songId in pendingRemovalIds,
+                                // 最后一行不画分隔线,避免列表尾部多出一条线
+                                showDivider = index < tracks.lastIndex,
+                                onClick = { onPlayTrack(index) },
+                                onActions = { onTrackActions(song.songId) },
+                            )
+                        }
                     }
                 }
             }
@@ -124,8 +138,26 @@ fun PlaylistDetailScreen(
 internal fun isPlayable(song: SongEntity, streamFallback: Boolean): Boolean =
     song.hasLocalFile || song.state != SongState.MISSING_URL.name || streamFallback
 
+/**
+ * 列表区的三种互斥形态。
+ *
+ * 歌单列表与曲目列表共用这一套(两者的加载反馈都是「骨架屏 → 空态 / 内容」):
+ * 抽成枚举而不是在 Crossfade 里直接塞几个布尔量 —— 枚举让过渡规则一眼可读,
+ * 也能被单测钉住(见 NavTransitionTest)。
+ */
+internal enum class ListContentState { Loading, Empty, Content }
+
+/** 由加载态与数据量推导当前该显示哪个形态。 */
+internal fun listContentState(loading: Boolean, isEmpty: Boolean): ListContentState = when {
+    // 骨架屏优先于空态:否则首次进入会先闪一下"没有歌曲"
+    loading && isEmpty -> ListContentState.Loading
+    isEmpty -> ListContentState.Empty
+    else -> ListContentState.Content
+}
+
 @Composable
 private fun TrackRow(
+    modifier: Modifier = Modifier,
     song: SongEntity,
     playable: Boolean,
     streamFallback: Boolean,
@@ -137,6 +169,7 @@ private fun TrackRow(
 ) {
     val sizing = LocalWindowSizing.current
     ListRow(
+        modifier = modifier,
         minHeight = sizing.menuRowHeight,
         enabled = playable && !pending,
         onClick = onClick,

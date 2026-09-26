@@ -64,6 +64,8 @@ fun QueueScreen(
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             itemsIndexed(songs, key = { _, song -> song.songId }) { index, song ->
                 QueueRow(
+                    // 移除一首后其余行平滑上移
+                    modifier = Modifier.animateItem(),
                     song = song,
                     current = index == currentIndex,
                     // 最后一行不画分隔线,避免列表尾部多出一条线
@@ -78,6 +80,7 @@ fun QueueScreen(
 
 @Composable
 private fun QueueRow(
+    modifier: Modifier = Modifier,
     song: SongEntity,
     current: Boolean,
     showDivider: Boolean,
@@ -87,6 +90,7 @@ private fun QueueRow(
     val sizing = LocalWindowSizing.current
     // 当前曲用品牌红淡底 + 红字,不依赖(已移除的)描边
     ListRow(
+        modifier = modifier,
         minHeight = sizing.menuRowHeight,
         selected = current,
         onClick = onClick,

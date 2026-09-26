@@ -1,5 +1,7 @@
 package io.github.adkimsm.neteasedownloader.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +41,7 @@ import io.github.adkimsm.neteasedownloader.ui.components.PlaylistSkeletonList
 import io.github.adkimsm.neteasedownloader.ui.components.ScreenScaffold
 import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.Motion
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
 import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
@@ -117,45 +120,57 @@ fun PlaylistScreen(
                 Spacer(Modifier.height(sizing.gapSm))
             }
 
-            when {
-                // 加载骨架屏优先于空态:否则首次进入会先闪一下"还没有歌单"
-                loading && playlists.isEmpty() -> {
-                    PlaylistSkeletonList(modifier = Modifier.weight(1f))
-                }
+            // 骨架屏 -> 列表/空态:三种形态之间淡入淡出,不再硬切。
+            // 骨架屏自身仍由 rememberDelayedVisibility 延迟出现,这里只管「已显示之后」的切换。
+            Crossfade(
+                targetState = listContentState(loading, playlists.isEmpty()),
+                modifier = Modifier.weight(1f),
+                animationSpec = tween(Motion.ContentDurationMs),
+                label = "playlistContent",
+            ) { contentState ->
+                when (contentState) {
+                    // 加载骨架屏优先于空态:否则首次进入会先闪一下"还没有歌单"
+                    ListContentState.Loading ->
+                        PlaylistSkeletonList(modifier = Modifier.fillMaxSize())
 
-                playlists.isEmpty() -> {
-                    EmptyState(
-                        syncing = syncing,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                    ListContentState.Empty -> {
+                        EmptyState(
+                            syncing = syncing,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-                else -> {
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        if (likedEntry != null) {
-                            item(key = "liked") { LikedEntryRow(likedEntry, onOpen = onOpenLiked) }
-                        }
-                        // 离线删过的歌:给一个可见的交代,也给一个"现在就来"的按钮
-                        if (pendingRemovalCount > 0) {
-                            item(key = "pending-removal") {
-                                PendingRemovalRow(
-                                    count = pendingRemovalCount,
-                                    flushing = pendingFlushInFlight,
-                                    onFlush = onFlushPending,
+                    ListContentState.Content -> {
+                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            if (likedEntry != null) {
+                                item(key = "liked") { LikedEntryRow(likedEntry, onOpen = onOpenLiked) }
+                            }
+                            // 离线删过的歌:给一个可见的交代,也给一个"现在就来"的按钮
+                            if (pendingRemovalCount > 0) {
+                                item(key = "pending-removal") {
+                                    PendingRemovalRow(
+                                        // 队列执行完/被清空时整行淡出+让位,不硬切
+                                        modifier = Modifier.animateItem(),
+                                        count = pendingRemovalCount,
+                                        flushing = pendingFlushInFlight,
+                                        onFlush = onFlushPending,
+                                    )
+                                }
+                            }
+                            items(playlists, key = { it.id }) { playlist ->
+                                PlaylistRow(
+                                    // 新建/删除歌单后其余行平滑让位
+                                    modifier = Modifier.animateItem(),
+                                    playlist = playlist,
+                                    checked = playlist.enabled,
+                                    onCheckedChange = { onToggle(playlist, it) },
+                                    onOpen = { onOpenPlaylist(playlist.id) },
+                                    toggleLoading = playlist.id in pendingToggleIds,
                                 )
                             }
+                            // 新建入口放列表尾部,不占页头(播放器惯例;页头留给同步与设置)
+                            item(key = "create") { CreatePlaylistRow(onCreate = onCreatePlaylist) }
                         }
-                        items(playlists, key = { it.id }) { playlist ->
-                            PlaylistRow(
-                                playlist = playlist,
-                                checked = playlist.enabled,
-                                onCheckedChange = { onToggle(playlist, it) },
-                                onOpen = { onOpenPlaylist(playlist.id) },
-                                toggleLoading = playlist.id in pendingToggleIds,
-                            )
-                        }
-                        // 新建入口放列表尾部,不占页头(播放器惯例;页头留给同步与设置)
-                        item(key = "create") { CreatePlaylistRow(onCreate = onCreatePlaylist) }
                     }
                 }
             }
@@ -294,9 +309,15 @@ private fun CreatePlaylistRow(onCreate: () -> Unit) {
  * 交代 —— 那个删除动作确实记下了,而且现在就能立刻执行。
  */
 @Composable
-private fun PendingRemovalRow(count: Int, flushing: Boolean, onFlush: () -> Unit) {
+private fun PendingRemovalRow(
+    modifier: Modifier = Modifier,
+    count: Int,
+    flushing: Boolean,
+    onFlush: () -> Unit,
+) {
     val sizing = LocalWindowSizing.current
     ListRow(
+        modifier = modifier,
         minHeight = sizing.touchTarget,
         enabled = !flushing,
         onClick = onFlush,

@@ -355,6 +355,7 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
 | D18 | 地区解锁 | `X-Real-IP` 默认**关**,设置里可开 | 用户明确选择:它伪造来源 IP |
 | D19 | 来源可见性 | 落库(`song.source`)并在曲目行显示「酷我/酷狗」徽标 | 第三方多为 128k mp3,用户需要能分辨 |
 | D20 | 离线删除 | 本地文件**当场删**,歌单移除 + 取消红心入持久化队列,联网后**自动统一执行**(同步前也兜底执行一次) | 用户明确要求:没网时也记下要删的歌,下次联网统一删。本地删除本来就不需要网络,拖着只会让用户以为"点了没反应" |
+| D21 | 过渡动画 | 页面进出走 `AnimatedContent`,方向按「根层面 / 入栈层面」判定;**模态与根页面之间只淡入淡出** | 见 §18 |
 
 ### 15.1 已知后果(用户已确认接受)
 
@@ -459,4 +460,64 @@ Cookie 只持久化 MUSIC_U(DataStore);接口返回未登录 → 引导重新扫
   (`duration: 11`)。能给全曲的歌(某版《起风了》)则与标称时长对得上。
   匹配器按实测字节数和码率反推时长,不到标称时长一半就当试听片段丢掉,
   换下一个候选或下一个音源。时长或码率未知时不判,避免误杀。
+
+## 18. 过渡动画(D21,2026-09)
+
+### 为什么之前生硬
+
+`AppNavigation()` 里是一个裸 `when (dest)`,整屏内容直接替换 —— 页面进出、结果条、
+mini 播放条、骨架屏切换全是硬切。补动画时最容易犯的错是「到处滑」,所以先定规则。
+
+### 令牌集中在一处
+
+时长与规格全部收进 `ui/theme/Motion.kt`,各屏不再写 `tween(300)` 这类魔法数 ——
+与 `Spacing` / `Dimens` / `AppShapes` 同一套做法。三个时长分工不同,不要互相替换:
+
+| 令牌 | 值 | 用在哪 |
+|---|---|---|
+| `NavDurationMs` | 220 | 整屏页面进出(唯一带方向感的) |
+| `OverlayDurationMs` | 180 | 结果条 / mini 播放条显隐 |
+| `ContentDurationMs` | 160 | 同屏内容切换(骨架屏 → 列表) |
+
+比 Material 默认(300~400ms)短:那是给手机定的,手表位移距离短得多,同样时长会显得
+"发飘",且手表 CPU 弱,动画期间的重组要尽快结束。
+
+### 方向判定:根层面 / 入栈层面,而不是比较 dest
+
+`layerOf` / `navTransitionFor` / `slidesForward` 抽成 `ScreenRouting.kt` 里的纯函数,
+由 `NavTransitionTest` 钉住。关键决策:
+
+- **只用两层**(`Root` / `Stacked`),不试图还原真实栈深度。动画要的是"推进还是退回"。
+- **模态(`Preview` / `Syncing`)算 `Root`**:它们由同步流程触发、结束回到发起前页面。
+  若按入栈处理,进出时会横滑,让人误以为"进了新页面且回不去了"。
+- **不能靠比较 dest 是否相等判方向**:`PlaylistDetail(1) -> PlaylistDetail(2)` 会被误判成
+  "没变"而退化成淡入淡出。按层面 + 入栈顺序判才稳。
+
+位移距离用**固定 dp**(`NavSlideDistanceDp = 48`)而不是屏宽比例:320px 圆表上按比例算
+出来只有 30dp 左右,方向感会消失。`transitionSpec` 不是 `@Composable`,密度要提前取好。
+
+### 踩坑
+
+- **`initialState` / `targetState` 直接用 `AnimatedContent` 作用域给的**,不要自己用
+  `remember` 记上一个 dest:那要等 `LaunchedEffect` 跑完才更新,与 `transitionSpec` 的
+  求值时机有竞态,快速连跳时方向会判错。
+- **`contentKey = { it }` 必须显式给**。`Dest` 是 sealed interface,`data object` 与
+  `data class` 都能当 key;不给的话同类型不同参数的页面会被复用同一份内容 —— 动画不重放,
+  页面里的 `remember` 状态还会残留到下一个歌单/歌曲。
+- **`AnimatedVisibility` 的判空要放在它自己身上**,写成 `banner?.let { AnimatedVisibility }`
+  会让退出动画还没播内容就已经没了。正确写法是
+  `AnimatedVisibility(visible = banner != null) { banner?.let { ... } }`。
+- **列表动画靠稳定的 key + `Modifier.animateItem()`**。三处列表(`PlaylistScreen` /
+  `PlaylistDetailScreen` / `QueueScreen`)的 `items*` 本来就用 songId/id 作 key,
+  所以删一首歌之后剩余行会平滑上移而不是瞬移。
+- **骨架屏的延迟出现(`SkeletonDelayMs`)不能被动效破坏**:`Crossfade` 只负责
+  "已经显示骨架屏之后"到列表/空态的切换,不参与"要不要显示骨架屏"的判断。
+
+### 刻意没做
+
+- **不用 `SharedTransitionLayout`**:D13 定了播放页与列表都不显示封面,没有可共享的视觉
+  元素,共享元素过渡会变成无源之水。
+- **不给勾选框加动画**:勾选是开关语义,动效会削弱即时反馈。
+- **不给同步百分比做插值**:进度是 500ms 轮询的真实数据,插值会与真实进度打架。
+- **不动 `SeekBar` 的拖动逻辑**:`dragging` 与轮询的时序是刻意为之("松手才 seek")。
 

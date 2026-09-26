@@ -9,7 +9,16 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,7 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -52,7 +63,11 @@ import io.github.adkimsm.neteasedownloader.ui.SettingsScreen
 import io.github.adkimsm.neteasedownloader.ui.SongActionsScreen
 import io.github.adkimsm.neteasedownloader.ui.SyncPreviewScreen
 import io.github.adkimsm.neteasedownloader.ui.SyncProgressScreen
+import io.github.adkimsm.neteasedownloader.ui.NavTransition
+import io.github.adkimsm.neteasedownloader.ui.navTransitionFor
+import io.github.adkimsm.neteasedownloader.ui.slidesForward
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
+import io.github.adkimsm.neteasedownloader.ui.theme.Motion
 import io.github.adkimsm.neteasedownloader.ui.theme.NeteaseDownloaderTheme
 
 class MainActivity : ComponentActivity() {
@@ -92,10 +107,12 @@ private fun AppNavigation() {
     val pendingRemovals by mainViewModel.pendingRemovals.collectAsStateWithLifecycle()
     val flushInFlight by mainViewModel.flushInFlight.collectAsStateWithLifecycle()
     val sizing = LocalWindowSizing.current
+    // transitionSpec 不是 @Composable,密度得在这里先取好;
+    // 位移距离用固定 dp 而非屏宽比例(理由见 Motion.NavSlideDistanceDp)
+    val slidePx = with(LocalDensity.current) { Motion.NavSlideDistanceDp.dp.roundToPx() }
 
     // 系统返回:栈非空就弹栈,而不是直接退出 App
     BackHandler(enabled = stack.isNotEmpty()) { mainViewModel.pop() }
-
     // Android 13+ 需要通知权限才能显示同步/播放通知
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -112,8 +129,39 @@ private fun AppNavigation() {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(1f)) {
-            when (val dest = uiState.dest) {
+        AnimatedContent(
+            targetState = uiState.dest,
+            modifier = Modifier.weight(1f),
+            // initialState/targetState 由 AnimatedContent 直接给出,是精确的"从哪来";
+            // 不要自己用 remember 记上一个 dest —— 那要等 LaunchedEffect 跑完才更新,
+            // 与 transitionSpec 的求值时机有竞态,方向会在快速连跳时判错。
+            transitionSpec = {
+                when (navTransitionFor(initialState, targetState)) {
+                    NavTransition.Fade -> fadeIn(tween(Motion.NavDurationMs)) togetherWith
+                        fadeOut(tween(Motion.NavDurationMs))
+
+                    NavTransition.Slide -> {
+                        // 前进:新页从右进、旧页向左退;后退则整体反向。
+                        // 位移用固定 dp(check "NavSlideDistanceDp"),不按屏宽比例 ——
+                        // 小圆表上按比例算出来只有 30dp 左右,方向感会消失。
+                        val forward = slidesForward(initialState, targetState)
+                        val direction = if (forward) 1 else -1
+                        (slideInHorizontally(tween(Motion.NavDurationMs)) {
+                            direction * slidePx
+                        } + fadeIn(tween(Motion.NavDurationMs))) togetherWith
+                            (slideOutHorizontally(tween(Motion.NavDurationMs)) {
+                                -direction * slidePx
+                            } + fadeOut(tween(Motion.NavDurationMs)))
+                    }
+                }
+            },
+            label = "screen",
+            // Dest 是 sealed interface:data object 与 data class 都可用作 key。
+            // 不给 contentKey 的话 PlaylistDetail(1) -> PlaylistDetail(2) 这类
+            // 「同类型不同参数」的跳转会被复用同一份内容,动画不重放、状态还残留。
+            contentKey = { it },
+        ) { dest ->
+            when (dest) {
                 Dest.Login -> {
                     val loginViewModel: LoginViewModel = viewModel()
                     val state by loginViewModel.stateFlow.collectAsStateWithLifecycle()
@@ -436,23 +484,53 @@ private fun AppNavigation() {
             }
         }
 
-        deleteState.banner?.let { banner ->
-            DeleteResultBanner(
-                songName = banner.songName,
-                outcome = banner.outcome,
-                report = banner.report,
-                onUndo = mainViewModel::undoRemove,
-                onRetry = mainViewModel::retryRemove,
-                onDismiss = mainViewModel::dismissDeleteBanner,
-                modifier = Modifier.padding(
-                    start = sizing.screenPadding,
-                    end = sizing.screenPadding,
-                    bottom = sizing.gapSm,
-                ),
-            )
+        // 结果条出现/消失默认是硬切:3 秒的存活窗口里,冒出来这一下比它本身更抢眼。
+        // visible 判空放在 AnimatedVisibility 上、内容再取 banner ——
+        // 若写成 banner?.let 包在外面,退出动画还没播内容就已经没了。
+        AnimatedVisibility(
+            visible = deleteState.banner != null,
+            enter = slideInVertically(
+                animationSpec = tween(Motion.OverlayDurationMs),
+                initialOffsetY = { -it },
+            ) + fadeIn(tween(Motion.OverlayDurationMs)),
+            exit = slideOutVertically(
+                animationSpec = tween(Motion.OverlayDurationMs),
+                targetOffsetY = { -it },
+            ) + fadeOut(tween(Motion.OverlayDurationMs)),
+            label = "deleteBanner",
+        ) {
+            // 取到的一定是进/退场那一刻的那一条,动画期间不会突然变空
+            deleteState.banner?.let { banner ->
+                DeleteResultBanner(
+                    songName = banner.songName,
+                    outcome = banner.outcome,
+                    report = banner.report,
+                    onUndo = mainViewModel::undoRemove,
+                    onRetry = mainViewModel::retryRemove,
+                    onDismiss = mainViewModel::dismissDeleteBanner,
+                    modifier = Modifier.padding(
+                        start = sizing.screenPadding,
+                        end = sizing.screenPadding,
+                        bottom = sizing.gapSm,
+                    ),
+                )
+            }
         }
 
-        if (uiState.showMiniPlayer) {
+        // mini 播放条从底部升起、下滑退出。它只在根页面常驻,
+        // 进播放页时会被新页面「接管」,下滑退场正好配合这一语义。
+        AnimatedVisibility(
+            visible = uiState.showMiniPlayer,
+            enter = slideInVertically(
+                animationSpec = tween(Motion.OverlayDurationMs),
+                initialOffsetY = { it },
+            ) + fadeIn(tween(Motion.OverlayDurationMs)),
+            exit = slideOutVertically(
+                animationSpec = tween(Motion.OverlayDurationMs),
+                targetOffsetY = { it },
+            ) + fadeOut(tween(Motion.OverlayDurationMs)),
+            label = "miniPlayer",
+        ) {
             MiniPlayerBar(
                 song = playingSong,
                 isPlaying = playerState.isPlaying,
