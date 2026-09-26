@@ -59,6 +59,17 @@ class SyncEngine(
     private val mediaStoreWriter: MediaStoreWriter,
     /** 正在播放的歌曲:同步删除时豁免它 */
     private val playingSongId: () -> Long? = { null },
+
+    /**
+     * 执行「离线待删除」队列(联网后统一删除)。返回条数只用于日志。
+     *
+     * 用 lambda 注入而不是直接持有 SongRemover:同步层不该依赖删除层的实现,
+     * 与 [playingSongId] 同一个理由 —— 需要什么就问调用方要一个函数。
+     */
+    private val flushPendingRemovals: suspend () -> Int = { 0 },
+
+    /** 已排队待删的歌曲 id:它们不能被当成「缺文件」重新下载 */
+    private val pendingRemovalIds: () -> Set<Long> = { emptySet() },
 ) {
     /** 远端↔本地歌单/曲目的缓存入口,与浏览层共用同一实现 */
     private val cache = PlaylistCache(api, playlistDao, songDao, playlistSongDao)
@@ -122,6 +133,14 @@ class SyncEngine(
         val uid = resolveUid()
         if (uid == 0L) throw IllegalStateException("未登录,请重新扫码")
         Diag.i(TAG_ENGINE, "refreshAndDiff 开始, uid=$uid")
+
+        // 先执行离线排队的远端删除,再拉歌单。顺序反了的话,拉回来的远端状态还是「没删」,
+        // 差量就会把排队的歌算成待下载 —— 用户刚在离线时删掉的歌立刻被下回来。
+        if (pendingRemovalIds().isNotEmpty()) {
+            _progress.value = Progress(Stage.REFRESHING, "正在执行离线待删除…")
+            runCatching { flushPendingRemovals() }
+                .onFailure { Diag.w(TAG_ENGINE, "执行离线待删除失败:${it.message}") }
+        }
 
         _progress.value = Progress(Stage.REFRESHING, "正在拉取歌单…")
         val remotePlaylists = api.fetchUserPlaylists(uid)
@@ -286,8 +305,8 @@ class SyncEngine(
         val allSongs = songDao.getByIds(songDao.getAllIds())
         val toDelete = planLocalDeletions(allSongs, remoteIds, playingSongId())
 
-        val pending = songDao.getByIds(remoteIds.toList())
-            .filter { it.state != SongState.OK.name }
+        // 已排队待删的歌不进下载候选:远端删除还没落地,不能被当成「缺文件」下回来
+        val pending = planDownloadCandidates(songDao.getByIds(remoteIds.toList()), pendingRemovalIds())
 
         // 批量取下载地址,不可用的(无 url / 仅试听)标记 MISSING_URL
         var missingUrlCount = 0

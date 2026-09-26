@@ -1,6 +1,7 @@
 package io.github.adkimsm.neteasedownloader.sync
 
 import io.github.adkimsm.neteasedownloader.data.SongEntity
+import io.github.adkimsm.neteasedownloader.data.SongState
 
 /**
  * 同步的"该删哪些本地文件"决策(纯函数,可单测)。
@@ -26,3 +27,17 @@ fun planLocalDeletions(
         song.songId !in enabledRemoteIds &&
         song.songId != playingSongId
 }
+
+/**
+ * 同步的「该下哪些歌」决策(纯函数,可单测)。
+ *
+ * 两条规则:
+ *  1. 本地没有完整文件(`state != OK`)才需要下;
+ *  2. **已经排队待删的歌一律排除**。它们的远端删除还没落地,本地歌单关联也还在,
+ *     只按「缺文件」判断的话,下一轮同步就会把用户刚在离线时删掉的歌重新下载回来 ——
+ *     队列执行失败时尤其明显(那时远端还留着,拉回来一看就是「缺文件」)。
+ *
+ * 第 2 条是这条链路上最容易漏掉的不变量,所以它和待删集合一样放在纯函数里由单测钉住。
+ */
+fun planDownloadCandidates(songs: List<SongEntity>, excludedIds: Set<Long>): List<SongEntity> =
+    songs.filter { it.state != SongState.OK.name && it.songId !in excludedIds }

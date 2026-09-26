@@ -112,4 +112,31 @@ class DiffPlannerTest {
         val plan = planLocalDeletions(downloaded, enabledRemoteIds = setOf(10L))
         assertEquals("顺序应保持输入顺序,便于复用上层排序", listOf(30L, 20L), plan.map { it.songId })
     }
+
+    // ---------- 待下载候选 ----------
+
+    @Test
+    fun downloadCandidates_skipSongsAlreadyQueuedForRemoval() {
+        // 离线删掉的歌:本地文件没了,但远端删除还没落地、歌单关联也还在。
+        // 不排除的话,下一轮同步就会把用户刚删掉的歌当成「缺文件」重新下回来。
+        val pending = listOf(
+            song(1L, state = SongState.PENDING.name, localUri = null),
+            song(2L, state = SongState.PENDING.name, localUri = null),
+        )
+        val plan = planDownloadCandidates(pending, excludedIds = setOf(1L))
+        assertEquals(listOf(2L), plan.map { it.songId })
+    }
+
+    @Test
+    fun downloadCandidates_skipSongsThatAlreadyHaveLocalFile() {
+        val songs = listOf(song(1L), song(2L, state = SongState.PENDING.name, localUri = null))
+        val plan = planDownloadCandidates(songs, excludedIds = emptySet())
+        assertEquals(listOf(2L), plan.map { it.songId })
+    }
+
+    @Test
+    fun downloadCandidates_keepEverythingWhenNothingIsQueued() {
+        val songs = listOf(song(1L, state = SongState.MISSING_URL.name, localUri = null))
+        assertEquals(listOf(1L), planDownloadCandidates(songs, emptySet()).map { it.songId })
+    }
 }

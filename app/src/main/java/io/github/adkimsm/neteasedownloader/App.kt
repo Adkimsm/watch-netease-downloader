@@ -3,6 +3,7 @@ package io.github.adkimsm.neteasedownloader
 import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
@@ -117,6 +118,10 @@ class App : Application() {
             mediaStoreWriter = mediaStoreWriter,
             // 正在播放的歌在同步删除时豁免(自愈:下一轮不再受保护)
             playingSongId = { playbackRepository.state.value.songId },
+            // 离线排队的远端删除:同步前先执行,否则拉回来的歌单里还带着它们
+            flushPendingRemovals = { songRemover.flushPending().cleared },
+            // 已排队待删的歌不进下载候选,免得被当成「缺文件」下回来
+            pendingRemovalIds = { pendingRemovalStore.state.value.songIds },
         )
     }
 
@@ -211,7 +216,39 @@ class App : Application() {
         appScope.launch {
             cookieStore.init()
             Diag.i("App", "cookie init 完成,已登录=${cookieStore.isLoggedIn()}")
+            // 冷启动时队列里可能还有上次离线留下的条目:此时网络也许已经恢复,先试一次
+            pendingRemovalStore.reload()
+            flushPendingRemovalsIfPossible()
         }
+        registerPendingRemovalFlush()
+    }
+
+    /**
+     * 联网后自动执行离线排队的远端删除。
+     *
+     * 只在 App 进程存活时生效(手表上不做定时任务,也不后台唤醒);进程被杀时靠下次启动
+     * 与下次同步的兜底。执行本身是幂等的 —— 中途被杀只会留下没做完的条目,下次再来。
+     */
+    private fun registerPendingRemovalFlush() {
+        val manager = runCatching { getSystemService(ConnectivityManager::class.java) }.getOrNull()
+        if (manager == null) return
+        runCatching {
+            manager.registerDefaultNetworkCallback(
+                object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        appScope.launch { flushPendingRemovalsIfPossible() }
+                    }
+                },
+            )
+        }.onFailure { Diag.w("App", "注册网络回调失败:${it.message}") }
+    }
+
+    /** 队列为空或未登录时什么都不做:排队的远端变更属于某个账号 */
+    private suspend fun flushPendingRemovalsIfPossible() {
+        if (pendingRemovalStore.state.value.isEmpty) return
+        if (!cookieStore.isLoggedIn()) return
+        runCatching { songRemover.flushPending() }
+            .onFailure { Diag.w("App", "执行离线待删除失败:${it.message}") }
     }
 
     private fun installCrashHandler() {
