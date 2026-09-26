@@ -12,6 +12,8 @@ import io.github.adkimsm.neteasedownloader.data.AppDatabase
 import io.github.adkimsm.neteasedownloader.data.CookieStore
 import io.github.adkimsm.neteasedownloader.data.LikedSongDao
 import io.github.adkimsm.neteasedownloader.data.MediaStoreWriter
+import io.github.adkimsm.neteasedownloader.data.PendingRemovalDao
+import io.github.adkimsm.neteasedownloader.data.PendingRemovalStore
 import io.github.adkimsm.neteasedownloader.data.PlaylistCache
 import io.github.adkimsm.neteasedownloader.data.PlaylistDao
 import io.github.adkimsm.neteasedownloader.data.PlaylistSongDao
@@ -50,6 +52,15 @@ class App : Application() {
     val songDao: SongDao by lazy { SongDao(database) }
     val playlistSongDao: PlaylistSongDao by lazy { PlaylistSongDao(database) }
     val likedSongDao: LikedSongDao by lazy { LikedSongDao(database) }
+    val pendingRemovalDao: PendingRemovalDao by lazy { PendingRemovalDao(database) }
+
+    /**
+     * 离线删除排队的远端待办(歌单移除 + 取消红心)。
+     *
+     * 会被两条路径改动:用户点删除(ViewModel)与联网后的自动执行(下面的网络回调)。
+     * 让 UI 只订阅它,自动执行也能刷出徽标 —— 那件事发生在 ViewModel 之外。
+     */
+    val pendingRemovalStore: PendingRemovalStore by lazy { PendingRemovalStore(pendingRemovalDao) }
     /** 远端歌单/曲目缓存:同步与浏览层共用 */
     val playlistCache: PlaylistCache by lazy {
         PlaylistCache(ncmApi, playlistDao, songDao, playlistSongDao)
@@ -175,6 +186,7 @@ class App : Application() {
             likedSongDao = likedSongDao,
             mediaStoreWriter = mediaStoreWriter,
             playback = playbackRepository,
+            pendingRemovals = pendingRemovalStore,
             uid = { cookieStore.uidState.value },
         )
     }

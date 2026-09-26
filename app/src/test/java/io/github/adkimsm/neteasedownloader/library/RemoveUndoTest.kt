@@ -110,4 +110,12 @@ class RemoveUndoTest {
             ).hasFailure,
         )
     }
+
+    @Test
+    fun report_queuedIsNotAFailure() {
+        // 离线排队:远端一个字都没发出去。当成失败的话,结果条会给「重试」而不是「撤销」,
+        // 而这时用户唯一想做的其实是「我点错了,取消掉」。
+        val queued = RemoveReport(songId = 1L, fileDeleted = true, queued = true)
+        assertFalse(queued.hasFailure)
+    }
 }
