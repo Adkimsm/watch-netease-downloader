@@ -99,6 +99,12 @@ fun DeleteResultBanner(
 private fun bannerText(songName: String, outcome: RemoveOutcome, report: RemoveReport): String {
     val remoteCount = outcome.remoteTargets.size
     return when {
+        // 排队不是失败:远端一个字都没发出去,文案不能写成「已删除歌单」
+        report.queued && outcome.deleteLocal ->
+            stringResource(R.string.remove_banner_queued_local, songName)
+
+        report.queued -> stringResource(R.string.remove_banner_queued, songName)
+
         report.remoteFailed.isNotEmpty() ->
             stringResource(R.string.remove_banner_partial_failed, report.remoteFailed.size)
 

@@ -61,6 +61,9 @@ fun SongActionsScreen(
     onOpenQueue: () -> Unit,
     onCycleRepeat: () -> Unit,
     onToggleShuffle: () -> Unit,
+    /** 这首歌已经在「离线待删除」队列里 */
+    pendingRemoval: Boolean = false,
+    onCancelPendingRemoval: () -> Unit = {},
 ) {
     val sizing = LocalWindowSizing.current
 
@@ -89,9 +92,24 @@ fun SongActionsScreen(
                 trailing = null,
                 onClick = onDelete,
                 destructive = true,
-                // 紧随其后的分区分隔线即本组的收尾线
-                showDivider = false,
+                subtitle = if (pendingRemoval) {
+                    stringResource(R.string.actions_pending_removal)
+                } else {
+                    null
+                },
+                // 队列里那一行紧跟着它;没有那一行时由分区分隔线收尾
+                showDivider = pendingRemoval,
             )
+            // 已排队的删除一个字都没发出去:反悔就是取消排队,没网也能用
+            if (pendingRemoval) {
+                ActionRow(
+                    icon = Icons.Filled.DeleteOutline,
+                    label = stringResource(R.string.actions_cancel_pending_removal),
+                    trailing = null,
+                    onClick = onCancelPendingRemoval,
+                    showDivider = false,
+                )
+            }
             Spacer(Modifier.size(sizing.gapSm))
             HDivider()
             Spacer(Modifier.size(sizing.gapSm))

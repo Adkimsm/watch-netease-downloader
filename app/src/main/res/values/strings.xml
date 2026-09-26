@@ -88,6 +88,23 @@
     <string name="remove_banner_noop">「%1$s」没有可执行的变更</string>
     <string name="remove_banner_partial_failed">本地已删除;%1$d 个歌单移除失败</string>
     <string name="remove_banner_stale">本地已删除;%1$d 个歌单服务端未生效</string>
+    <string name="remove_offline_hint">离线:歌单移除与取消红心会在联网后自动执行</string>
+    <string name="remove_confirm_queue_with_playlists">加入待删除(含 %1$d 个歌单)</string>
+    <string name="remove_confirm_queue_unlike">删除本地 · 取消红心排队</string>
+    <string name="remove_banner_queued_local">已删除本地文件「%1$s」· 远端删除已排队</string>
+    <string name="remove_banner_queued">「%1$s」的远端删除已排队,联网后自动执行</string>
+
+    <string name="pending_removal_row">待删除 %1$d 首</string>
+    <string name="pending_removal_row_hint">联网后自动从歌单移除</string>
+    <string name="pending_removal_flush">立即执行</string>
+    <string name="pending_removal_clear">清空待删除队列(%1$d 首)</string>
+    <string name="pending_removal_clear_title">清空待删除队列</string>
+    <string name="pending_removal_clear_message">这 %1$d 首歌将不再从歌单移除,红心也会保留。本地文件已经删掉了,不会恢复。</string>
+    <string name="pending_removal_clear_confirm">清空</string>
+    <string name="pending_removal_cleared">已清空待删除队列</string>
+    <string name="detail_badge_pending_removal">待删除</string>
+    <string name="actions_pending_removal">已在待删除队列</string>
+    <string name="actions_cancel_pending_removal">取消待删除</string>
 
     <string name="common_on">开</string>
     <string name="common_off">关</string>
@@ -191,6 +208,7 @@
     <string name="error_refresh_failed">拉取歌单失败</string>
     <string name="error_operation_failed">操作失败</string>
     <string name="error_logout_failed">退出登录失败</string>
+    <string name="error_pending_removal_offline">离线中,联网后会自动执行</string>
 
     <!-- ==================== 诊断 ==================== -->
     <string name="diagnostics_title">诊断日志</string>

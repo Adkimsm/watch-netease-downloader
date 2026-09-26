@@ -28,6 +28,7 @@ import io.github.adkimsm.neteasedownloader.library.SongPresence
 import io.github.adkimsm.neteasedownloader.library.defaultSelection
 import io.github.adkimsm.neteasedownloader.library.planFor
 import io.github.adkimsm.neteasedownloader.library.removeTargetCount
+import io.github.adkimsm.neteasedownloader.library.shouldQueue
 import io.github.adkimsm.neteasedownloader.library.RemoveScope
 import io.github.adkimsm.neteasedownloader.ui.components.HDivider
 import io.github.adkimsm.neteasedownloader.ui.components.ListRow
@@ -56,6 +57,8 @@ fun RemoveSongSheet(
     presence: SongPresence?,
     loading: Boolean,
     inFlight: Boolean,
+    /** 没网:这一按不会立刻写远端,文案必须改口 */
+    offline: Boolean,
     selection: RemoveSelection,
     onSelectionChange: (RemoveSelection) -> Unit,
     onConfirm: () -> Unit,
@@ -74,6 +77,7 @@ fun RemoveSongSheet(
         }
 
         val outcome = planFor(RemoveScope.ASK, presence, selection)
+        val queued = shouldQueue(outcome, online = !offline)
 
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -95,6 +99,14 @@ fun RemoveSongSheet(
                 if (presence.liked) {
                     HintRow(
                         text = stringResource(R.string.remove_liked_hint),
+                        color = StateWarn,
+                    )
+                    Spacer(Modifier.height(sizing.gapSm))
+                }
+
+                if (queued) {
+                    HintRow(
+                        text = stringResource(R.string.remove_offline_hint),
                         color = StateWarn,
                     )
                     Spacer(Modifier.height(sizing.gapSm))
@@ -169,7 +181,12 @@ fun RemoveSongSheet(
 
             Spacer(Modifier.height(sizing.gapSm))
             PrimaryButton(
-                text = confirmLabel(outcome.remoteTargets.isNotEmpty(), removeTargetCount(outcome), outcome.deleteLocal),
+                text = confirmLabel(
+                    hasRemote = outcome.remoteTargets.isNotEmpty(),
+                    remoteCount = removeTargetCount(outcome),
+                    deleteLocal = outcome.deleteLocal,
+                    queued = queued,
+                ),
                 onClick = onConfirm,
                 enabled = !inFlight,
                 loading = inFlight,
@@ -181,7 +198,15 @@ fun RemoveSongSheet(
 }
 
 @Composable
-private fun confirmLabel(hasRemote: Boolean, remoteCount: Int, deleteLocal: Boolean): String = when {
+private fun confirmLabel(
+    hasRemote: Boolean,
+    remoteCount: Int,
+    deleteLocal: Boolean,
+    queued: Boolean,
+): String = when {
+    // 离线:按钮写「加入待删除」,不能让用户以为这一按就把歌单删了
+    queued && hasRemote -> stringResource(R.string.remove_confirm_queue_with_playlists, remoteCount)
+    queued -> stringResource(R.string.remove_confirm_queue_unlike)
     hasRemote && deleteLocal -> stringResource(R.string.remove_confirm_with_playlists, remoteCount)
     hasRemote -> stringResource(R.string.remove_confirm_playlists_only, remoteCount)
     deleteLocal -> stringResource(R.string.remove_confirm_local_only)

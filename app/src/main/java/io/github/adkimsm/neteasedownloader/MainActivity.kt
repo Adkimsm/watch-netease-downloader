@@ -89,6 +89,8 @@ private fun AppNavigation() {
     val playerState by playerViewModel.state.collectAsStateWithLifecycle()
     val playingSong by playerViewModel.song.collectAsStateWithLifecycle()
     val deleteState by mainViewModel.delete.collectAsStateWithLifecycle()
+    val pendingRemovals by mainViewModel.pendingRemovals.collectAsStateWithLifecycle()
+    val flushInFlight by mainViewModel.flushInFlight.collectAsStateWithLifecycle()
     val sizing = LocalWindowSizing.current
 
     // 系统返回:栈非空就弹栈,而不是直接退出 App
@@ -143,6 +145,9 @@ private fun AppNavigation() {
                         pendingToggleIds = pendingToggles,
                         errorMessage = errorMessage,
                         onDismissError = mainViewModel::clearError,
+                        pendingRemovalCount = pendingRemovals.count,
+                        pendingFlushInFlight = flushInFlight,
+                        onFlushPending = mainViewModel::flushPendingNow,
                     )
                 }
 
@@ -199,6 +204,8 @@ private fun AppNavigation() {
                         onProviderKugouChange = mainViewModel::setProviderKugou,
                         spoofRealIp = spoofRealIp,
                         onSpoofRealIpChange = mainViewModel::setSpoofRealIp,
+                        pendingRemovalCount = pendingRemovals.count,
+                        onClearPendingRemovals = mainViewModel::clearPendingRemovals,
                     )
                 }
 
@@ -228,6 +235,11 @@ private fun AppNavigation() {
                     LaunchedEffect(libraryVersion) {
                         if (libraryVersion > 0) detailViewModel.refreshFromCache()
                     }
+                    // 队列变化也可能来自 VM 之外(联网后自动执行):那时 libraryVersion 不动,
+                    // 但歌单关联已经被清掉了,列表必须从缓存重读一次
+                    LaunchedEffect(pendingRemovals) {
+                        detailViewModel.refreshFromCache()
+                    }
                     PlaylistDetailScreen(
                         title = playlist?.name
                             ?: stringResource(R.string.playlist_title),
@@ -235,6 +247,7 @@ private fun AppNavigation() {
                         loading = loading,
                         error = error,
                         pendingSongIds = emptySet(),
+                        pendingRemovalIds = pendingRemovals.songIds,
                         streamFallback = streamFallback,
                         onBack = mainViewModel::pop,
                         onRetry = detailViewModel::load,
@@ -279,6 +292,7 @@ private fun AppNavigation() {
                         presence = deleteState.presence,
                         loading = deleteState.loading,
                         inFlight = deleteState.inFlight,
+                        offline = deleteState.offline,
                         selection = deleteState.selection,
                         onSelectionChange = mainViewModel::updateSelection,
                         onConfirm = mainViewModel::confirmRemove,
@@ -296,6 +310,9 @@ private fun AppNavigation() {
                     LaunchedEffect(libraryVersion) {
                         if (libraryVersion > 0) likedViewModel.refreshFromCache()
                     }
+                    LaunchedEffect(pendingRemovals) {
+                        likedViewModel.refreshFromCache()
+                    }
                     // 喜欢页拉完/失败后,回歌单页时「我喜欢的音乐」行的数量要同步
                     LaunchedEffect(loading) {
                         if (!loading) mainViewModel.refreshLikes()
@@ -306,6 +323,7 @@ private fun AppNavigation() {
                         loading = loading,
                         error = error,
                         pendingSongIds = emptySet(),
+                        pendingRemovalIds = pendingRemovals.songIds,
                         streamFallback = streamFallback,
                         onBack = mainViewModel::pop,
                         onRetry = likedViewModel::load,
@@ -408,6 +426,8 @@ private fun AppNavigation() {
                         shuffle = playerState.shuffle,
                         onBack = mainViewModel::pop,
                         onDelete = { mainViewModel.startRemove(dest.songId) },
+                        pendingRemoval = dest.songId in pendingRemovals.songIds,
+                        onCancelPendingRemoval = { mainViewModel.cancelPendingRemoval(dest.songId) },
                         onOpenQueue = mainViewModel::openQueue,
                         onCycleRepeat = playerViewModel::cycleRepeat,
                         onToggleShuffle = playerViewModel::toggleShuffle,

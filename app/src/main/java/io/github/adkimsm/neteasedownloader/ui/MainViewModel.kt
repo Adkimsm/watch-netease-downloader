@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.adkimsm.neteasedownloader.App
 import io.github.adkimsm.neteasedownloader.R
+import io.github.adkimsm.neteasedownloader.data.PendingRemovalState
 import io.github.adkimsm.neteasedownloader.data.PlaylistEntity
 import io.github.adkimsm.neteasedownloader.data.isLikedPlaylistId
 import io.github.adkimsm.neteasedownloader.data.isOwnedBy
@@ -17,6 +18,7 @@ import io.github.adkimsm.neteasedownloader.library.RemoveSelection
 import io.github.adkimsm.neteasedownloader.library.SongPresence
 import io.github.adkimsm.neteasedownloader.library.defaultSelection
 import io.github.adkimsm.neteasedownloader.library.planFor
+import io.github.adkimsm.neteasedownloader.library.shouldQueue
 import io.github.adkimsm.neteasedownloader.library.undoPlanFor
 import io.github.adkimsm.neteasedownloader.diag.Diag
 import io.github.adkimsm.neteasedownloader.sync.SyncEngine
@@ -95,6 +97,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val loading: Boolean = false,
         val inFlight: Boolean = false,
         val banner: DeleteBanner? = null,
+        /** 这一刻有没有网:没网时远端那一半会排队等联网,面板文案据此改口 */
+        val offline: Boolean = false,
     )
 
     /** 删除后的结果条(3 秒内可撤销) */
@@ -279,6 +283,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _actionInFlight.value = ACTION_LOGOUT
             try {
                 appRef.cookieStore.clear()
+                // 队列属于上一个账号:换个账号登录后,这些歌单 id 多半已不再有意义
+                appRef.pendingRemovalStore.clearAll()
             } catch (e: Exception) {
                 Diag.e("MainViewModel", "退出登录失败", e)
                 _errorMessage.value = e.message
@@ -298,6 +304,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _delete = MutableStateFlow(DeleteState())
     val delete = _delete.asStateFlow()
+
+    /** 离线排队的远端待办。改它的可能是本 VM,也可能是 App 的联网回调 */
+    val pendingRemovals: StateFlow<PendingRemovalState> = appRef.pendingRemovalStore.state
+
+    private val _flushInFlight = MutableStateFlow(false)
+    val flushInFlight = _flushInFlight.asStateFlow()
 
     /** 曲库变动计数:详情页据此从缓存重读,不重新拉网络 */
     private val _libraryVersion = MutableStateFlow(0)
@@ -323,6 +335,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     loading = false,
                     presence = presence,
                     selection = defaultSelection(presence),
+                    // 面板文案要提前说清"这一按是排队还是真删";真正执行时会再判断一次
+                    offline = !appRef.isNetworkAvailable(),
                 )
             }
 
@@ -366,11 +380,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun executeRemove(presence: SongPresence, outcome: RemoveOutcome) {
         viewModelScope.launch {
             _delete.update { it.copy(inFlight = true) }
-            val report = runCatching { appRef.songRemover.remove(presence.songId, outcome) }
-                .getOrElse { e ->
-                    Diag.e(TAG, "删除歌曲失败 songId=${presence.songId}", e)
-                    RemoveReport(songId = presence.songId, fileDeleted = false)
+            // 这里**重新**判断有没有网:删除面板可能开着的时候网络就回来了。
+            // 那时应当直接执行,而不是把一件已经能做的事丢进队列。
+            val online = appRef.isNetworkAvailable()
+            val queued = shouldQueue(outcome, online)
+            _delete.update { it.copy(offline = !online) }
+            val report = runCatching {
+                if (queued) {
+                    // 本地文件当场删掉,远端那一半排队 —— 用户不会觉得"点了没反应"
+                    appRef.songRemover.removeOffline(presence.songId, outcome)
+                } else {
+                    appRef.songRemover.remove(presence.songId, outcome)
                 }
+            }.getOrElse { e ->
+                Diag.e(TAG, "删除歌曲失败 songId=${presence.songId}", e)
+                RemoveReport(songId = presence.songId, fileDeleted = false)
+            }
             _delete.update {
                 it.copy(
                     inFlight = false,
@@ -396,14 +421,64 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _delete.update { it.copy(banner = null) }
     }
 
-    /** 撤销:把刚移除的歌加回歌单与红心。本地文件等下次同步自然下回。 */
+    /**
+     * 撤销。
+     *
+     * 已排队的删除**什么都没发出去**,撤销就是把队列里那一条取消掉 —— 纯本地操作,
+     * 没网也能撤销。已执行的删除才需要把歌加回歌单与红心;本地文件两种情况都等下次同步下回。
+     */
     fun undoRemove() {
         val banner = _delete.value.banner ?: return
         viewModelScope.launch {
             _delete.update { it.copy(banner = null) }
-            appRef.songRemover.undo(banner.songId, undoPlanFor(banner.outcome, banner.report))
+            if (banner.report.queued) {
+                appRef.pendingRemovalStore.cancel(banner.songId)
+            } else {
+                appRef.songRemover.undo(banner.songId, undoPlanFor(banner.outcome, banner.report))
+            }
             _libraryVersion.update { it + 1 }
             refreshPlaylists()
+        }
+    }
+
+    // ---------- 离线待删除队列 ----------
+
+    /** 立刻执行排队中的远端删除。离线时给一句提示,而不是转一圈再失败。 */
+    fun flushPendingNow() {
+        if (!appRef.isNetworkAvailable()) {
+            _errorMessage.value = getApplication<Application>()
+                .getString(R.string.error_pending_removal_offline)
+            return
+        }
+        viewModelScope.launch {
+            _flushInFlight.value = true
+            try {
+                appRef.songRemover.flushPending()
+            } catch (e: Exception) {
+                Diag.e(TAG, "执行待删除队列失败", e)
+                _errorMessage.value = e.message
+                    ?: getApplication<Application>().getString(R.string.error_operation_failed)
+            } finally {
+                _flushInFlight.value = false
+                _libraryVersion.update { it + 1 }
+                refreshPlaylists()
+            }
+        }
+    }
+
+    /** 取消单条待删除:远端一个字都没发出去,所以没网也能取消 */
+    fun cancelPendingRemoval(songId: Long) {
+        viewModelScope.launch {
+            appRef.pendingRemovalStore.cancel(songId)
+            _libraryVersion.update { it + 1 }
+        }
+    }
+
+    /** 清空整个待删除队列 */
+    fun clearPendingRemovals() {
+        viewModelScope.launch {
+            appRef.pendingRemovalStore.clearAll()
+            _libraryVersion.update { it + 1 }
         }
     }
 

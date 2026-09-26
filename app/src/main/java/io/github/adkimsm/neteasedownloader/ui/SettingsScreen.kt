@@ -78,8 +78,12 @@ fun SettingsScreen(
     onProviderKugouChange: (Boolean) -> Unit,
     spoofRealIp: Boolean,
     onSpoofRealIpChange: (Boolean) -> Unit,
+    /** 离线删除排队中的曲目数:> 0 时给出「清空」出口 */
+    pendingRemovalCount: Int = 0,
+    onClearPendingRemovals: () -> Unit = {},
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
+    var confirmClearPending by remember { mutableStateOf(false) }
     val versionName = rememberAppVersionName()
     val sizing = LocalWindowSizing.current
 
@@ -238,6 +242,15 @@ fun SettingsScreen(
             // 通用:诊断与账号
             SectionLabel(text = stringResource(R.string.settings_section_general))
             Spacer(Modifier.height(sizing.gapSm))
+            if (pendingRemovalCount > 0) {
+                // 队列是「删了一半」的中间态:要么让它执行,要么让用户能整体反悔
+                SecondaryButton(
+                    text = stringResource(R.string.pending_removal_clear, pendingRemovalCount),
+                    onClick = { confirmClearPending = true },
+                    danger = true,
+                )
+                Spacer(Modifier.height(sizing.gapSm))
+            }
             SecondaryButton(
                 text = stringResource(R.string.settings_diagnostics),
                 onClick = onDiagnostics,
@@ -270,6 +283,20 @@ fun SettingsScreen(
                 onLogout()
             },
             onDismiss = { confirmLogout = false },
+        )
+    }
+
+    if (confirmClearPending) {
+        ConfirmDialog(
+            title = stringResource(R.string.pending_removal_clear_title),
+            message = stringResource(R.string.pending_removal_clear_message, pendingRemovalCount),
+            confirmText = stringResource(R.string.pending_removal_clear_confirm),
+            destructive = true,
+            onConfirm = {
+                confirmClearPending = false
+                onClearPendingRemovals()
+            },
+            onDismiss = { confirmClearPending = false },
         )
     }
 }

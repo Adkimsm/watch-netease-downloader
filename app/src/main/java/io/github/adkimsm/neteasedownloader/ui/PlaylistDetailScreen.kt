@@ -55,6 +55,8 @@ fun PlaylistDetailScreen(
     loading: Boolean,
     error: String?,
     pendingSongIds: Set<Long>,
+    /** 已排队待删(远端那一半还没执行)的歌:行上标出来,但行仍可点 */
+    pendingRemovalIds: Set<Long> = emptySet(),
     /** 在线播放开关:开着时 MISSING_URL 的歌仍可点(播放时去匹配第三方音源) */
     streamFallback: Boolean = false,
     onBack: () -> Unit,
@@ -98,6 +100,7 @@ fun PlaylistDetailScreen(
                             streamFallback = streamFallback,
                             playable = isPlayable(song, streamFallback),
                             pending = song.songId in pendingSongIds,
+                            pendingRemoval = song.songId in pendingRemovalIds,
                             // 最后一行不画分隔线,避免列表尾部多出一条线
                             showDivider = index < tracks.lastIndex,
                             onClick = { onPlayTrack(index) },
@@ -127,6 +130,7 @@ private fun TrackRow(
     playable: Boolean,
     streamFallback: Boolean,
     pending: Boolean,
+    pendingRemoval: Boolean,
     showDivider: Boolean,
     onClick: () -> Unit,
     onActions: () -> Unit,
@@ -159,6 +163,13 @@ private fun TrackRow(
         }
         Spacer(Modifier.size(Spacing.xs))
         TrackBadge(song, streamFallback)
+        if (pendingRemoval) {
+            Spacer(Modifier.size(Spacing.xs))
+            StateBadge(
+                text = stringResource(R.string.detail_badge_pending_removal),
+                color = StateWarn,
+            )
+        }
         sourceLabel(song.source)?.let { label ->
             Spacer(Modifier.size(Spacing.xs))
             StateBadge(text = label, color = StateInfo)

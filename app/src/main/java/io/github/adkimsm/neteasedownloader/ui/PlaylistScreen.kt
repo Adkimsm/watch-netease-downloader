@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Settings
@@ -40,6 +41,7 @@ import io.github.adkimsm.neteasedownloader.ui.theme.BrandRed
 import io.github.adkimsm.neteasedownloader.ui.theme.LocalWindowSizing
 import io.github.adkimsm.neteasedownloader.ui.theme.AppShapes
 import io.github.adkimsm.neteasedownloader.ui.theme.Spacing
+import io.github.adkimsm.neteasedownloader.ui.theme.StateWarn
 import io.github.adkimsm.neteasedownloader.ui.theme.SurfaceLevel3
 import io.github.adkimsm.neteasedownloader.ui.theme.TextPrimary
 import io.github.adkimsm.neteasedownloader.ui.theme.TextSecondary
@@ -67,6 +69,10 @@ fun PlaylistScreen(
     likedEntry: LikedEntry?,
     onOpenLiked: () -> Unit,
     onCreatePlaylist: () -> Unit,
+    /** 离线删除排队中的曲目数:> 0 时列表首部多一行入口 */
+    pendingRemovalCount: Int = 0,
+    pendingFlushInFlight: Boolean = false,
+    onFlushPending: () -> Unit = {},
     loading: Boolean = false,
     pendingToggleIds: Set<Long> = emptySet(),
     errorMessage: String? = null,
@@ -128,6 +134,16 @@ fun PlaylistScreen(
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         if (likedEntry != null) {
                             item(key = "liked") { LikedEntryRow(likedEntry, onOpen = onOpenLiked) }
+                        }
+                        // 离线删过的歌:给一个可见的交代,也给一个"现在就来"的按钮
+                        if (pendingRemovalCount > 0) {
+                            item(key = "pending-removal") {
+                                PendingRemovalRow(
+                                    count = pendingRemovalCount,
+                                    flushing = pendingFlushInFlight,
+                                    onFlush = onFlushPending,
+                                )
+                            }
                         }
                         items(playlists, key = { it.id }) { playlist ->
                             PlaylistRow(
@@ -268,5 +284,55 @@ private fun CreatePlaylistRow(onCreate: () -> Unit) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * 待删除队列入口。
+ *
+ * 只在队列非空时出现。联网后它会自己执行,这一行是给「离线时删了歌」的用户一个可见的
+ * 交代 —— 那个删除动作确实记下了,而且现在就能立刻执行。
+ */
+@Composable
+private fun PendingRemovalRow(count: Int, flushing: Boolean, onFlush: () -> Unit) {
+    val sizing = LocalWindowSizing.current
+    ListRow(
+        minHeight = sizing.touchTarget,
+        enabled = !flushing,
+        onClick = onFlush,
+        contentPadding = PaddingValues(start = sizing.gapSm, top = Spacing.xs, bottom = Spacing.xs),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.DeleteOutline,
+            contentDescription = null,
+            tint = StateWarn,
+            modifier = Modifier.size(sizing.iconSize),
+        )
+        Spacer(Modifier.width(sizing.gapSm))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.pending_removal_row, count),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.pending_removal_row_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (!flushing) {
+            Spacer(Modifier.width(sizing.gapSm))
+            Text(
+                text = stringResource(R.string.pending_removal_flush),
+                style = MaterialTheme.typography.bodySmall,
+                color = BrandRed,
+                maxLines = 1,
+            )
+        }
     }
 }
