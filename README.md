@@ -93,6 +93,17 @@ App 自带播放器,不依赖系统播放器:
 后两档没有确认框,所以每次删除后会有 **3 秒的撤销条**:点「撤销」把歌单与红心恢复
 (本地文件下次同步自然会下回来)。
 
+**没网时删歌**:本地文件**当场删掉**,「从歌单移除」与「取消红心」这两件需要联网的事
+记进**待删除队列**,联网后自动执行 —— 不必为了删一首歌先去找信号。此时:
+
+- 这首歌的曲目行显示「待删除」徽标(它此刻确实还在歌单里,等联网才真的移除);
+- 首页出现「待删除 N 首」一行,点它可**立即执行**;设置页可整体清空(清空只影响远端,
+  已经删掉的本地文件不会回来);
+- 二级菜单里那条「取消待删除」把这一笔撤掉 —— 队列还没发出去,没网也能撤;
+- 点「立即同步」时会**先执行队列再算差量**,所以排队中的歌不会被当成「缺文件」重新下载。
+
+队列是持久化的:杀进程、重启手表都还在;退出登录会清空(它属于上一个账号)。
+
 ---
 
 ## 灰色歌曲解锁
@@ -143,15 +154,15 @@ App 自带播放器,不依赖系统播放器:
 | 界面 | 能做什么 |
 |---|---|
 | 登录 | 扫码登录;二维码过期后刷新 |
-| 我的歌单 | **点行进入歌单看曲目**;点勾选框决定这个歌单是否纳入同步;列表尾部新建歌单;右上角同步图标 / 设置页「立即同步」发起同步;进设置 |
-| 歌单详情 | 曲目列表(已下载 / 在线 / 无版权徽标);点行播放;行尾「⋮」进二级菜单 |
+| 我的歌单 | **点行进入歌单看曲目**;点勾选框决定这个歌单是否纳入同步;列表尾部新建歌单;右上角同步图标 / 设置页「立即同步」发起同步;进设置;有离线待删除时首部多一行「待删除 N 首 · 立即执行」 |
+| 歌单详情 | 曲目列表(已下载 / 在线 / 无版权 / **待删除**徽标);点行播放;行尾「⋮」进二级菜单 |
 | 播放页 | 歌名、歌手、进度条、上一首 / 播放暂停 / 下一首;页头「⋮」进二级菜单 |
 | 二级菜单 | 删除这首歌、查看队列、播放模式(顺序 / 列表循环 / 单曲循环)、随机播放 |
 | 播放队列 | 当前队列、当前曲高亮、单曲移除、点击跳播 |
 | 删除面板 | 勾选要从哪些歌单移除、是否只删本地 / 保留本地,并显示实时后果 |
 | 同步预览 | 查看本次新增 / 删除 / 跳过的歌曲与存储占用,以及**其中有多少首用第三方音源**;确认或放弃 |
 | 同步进度 | 进度、当前曲目、剩余时间;停止同步(可续传) |
-| 设置 | 播放(在线播放音质)、管理(删除歌曲时的行为)、同步(下载音质、已勾选歌单数、「立即同步」)、解锁(下载/在线播放替换音源、音源、海外地区解锁)、通用(诊断日志、退出登录) |
+| 设置 | 播放(在线播放音质)、管理(删除歌曲时的行为)、同步(下载音质、已勾选歌单数、「立即同步」)、解锁(下载/在线播放替换音源、音源、海外地区解锁)、通用(清空待删除队列、诊断日志、退出登录) |
 | 诊断日志 | 查看运行日志并一键复制(反馈问题时附上) |
 
 界面按窗口**短边**分三档自适应:Compact(< 300dp)/ Medium(300–360dp)/ Expanded(≥ 360dp),窄屏上会自动收掉非必要信息,把空间让给列表和按钮。
@@ -166,6 +177,7 @@ App 自带播放器,不依赖系统播放器:
 - **在线播放音质与下载音质分开设**:磁盘上可以存无损,但手表串流无损基本必卡,所以串流默认「极高(320 kbps)」。
 - **串流不落盘**:在线播放的歌不会写进 `Music/WatchMusic/`,也不占本地索引。
 - **删除**:从歌单里移除、或取消勾选歌单后不再需要的歌曲,会在同步时**删除本地文件**(严格差量);多个歌单共用的歌曲,只在最后一个歌单也移除后才删。
+- **离线删除**:没网时删除只删本地文件,歌单移除与取消红心进队列等联网(见上文「删除一首歌」)。
 - **卸载**:卸载 App 不会删除已下载的音频文件(仍留在 `Music/WatchMusic/`),但会清除登录状态与本地索引,重装后需要重新扫码。
 
 ---
@@ -240,7 +252,7 @@ keyPassword=你的key密码
 - **语言 / UI**:Kotlin 2.3.20 + Jetpack Compose(Material 3,Compose BOM 2025.06.00)
 - **构建**:Gradle 9.5.0(wrapper)+ AGP 9.2.0,JDK 25
 - **网络 / 序列化 / 协程**:OkHttp 4.12.0、kotlinx.serialization 1.8.1、kotlinx.coroutines 1.10.2
-- **本地存储**:DataStore 1.1.7(设置与登录凭据)+ framework SQLite 手写三表索引(不引入 Room)
+- **本地存储**:DataStore 1.1.7(设置与登录凭据)+ framework SQLite 手写索引表(不引入 Room)
 - **播放**:Media3 1.11.1(`media3-exoplayer` + `media3-session`,不引 `media3-ui`)
 - **其他**:zxing 3.5.3(本地生成登录二维码)、Coil 2.7.0(歌单封面)
 - **依赖注入**:`App.kt` 中手写 ServiceLocator(不引入 Hilt)
@@ -259,8 +271,9 @@ app/src/main/java/io/github/adkimsm/neteasedownloader/
 │             SourceProvider.kt, SourceMatcher.kt 契约 / 匹配器(打分 + 探活)
 │             ProviderHttp.kt, CandidateScorer.kt 可注入 HTTP + Range 探活 / 候选打分
 │             SongSourceResolver.kt            官方优先、第三方兜底(下载与播放共用)
-├── data/     AppDatabase.kt, Daos.kt,         手写 SQLite 四表(playlist / song /
-│             Entities.kt, MediaStoreWriter.kt, playlist_song / liked_song)、
+├── data/     AppDatabase.kt, Daos.kt,         手写 SQLite 六表(playlist / song /
+│             Entities.kt, MediaStoreWriter.kt, playlist_song / liked_song /
+│             PendingRemovalStore.kt           pending_removal / pending_removal_playlist)、
 │             CookieStore.kt, SettingsStore.kt MediaStore 写入、登录凭据与设置
 │             PlaylistCache.kt                 远端↔本地歌单/曲目缓存(同步与浏览共用)
 ├── sync/     SyncEngine.kt, SyncService.kt    差量同步引擎 + 前台服务
@@ -273,7 +286,9 @@ app/src/main/java/io/github/adkimsm/neteasedownloader/
 │             PlaybackQueue.kt                 手动切歌的纯语义
 │             QueueStore.kt                    队列与位置快照
 ├── library/  SongPresence.kt / RemovePlan.kt  删除范围与后果预览(纯函数)
+│             PendingRemovalPlan.kt           离线删除的排队/合并/回写决策(纯函数)
 │             SongRemover.kt / RemoveReport.kt 远端删除 + 红心 + 本地删除 + 撤销
+│                                              + 离线排队与联网后统一执行
 ├── ui/       11 个界面 + ViewModel + theme/   尺寸令牌、颜色、字体
 └── diag/     Diag.kt                          环形内存日志 + 文件日志(崩溃自动落盘)
 ```
@@ -283,7 +298,7 @@ app/src/main/java/io/github/adkimsm/neteasedownloader/
 ```
 扫码登录 → CookieStore(仅持久化 MUSIC_U)
         → NcmApi(weapi / eapi 直连 music.163.com)
-        → SyncEngine:diff → 文件名规范化 → 下载 → 写标签 → 删除
+        → SyncEngine:执行离线待删除队列 → diff → 文件名规范化 → 下载 → 写标签 → 删除
         → MediaStoreWriter(Music/WatchMusic/)+ SQLite 索引
 ```
 
@@ -315,7 +330,7 @@ weapi 通道对全部端点返回 HTTP 200 空 body,已弃用)。写失败常常
 
 ## 测试与 CI
 
-单元测试共 **286 个**(3 个需真实账号或第三方站点的 live 用例按设计跳过),覆盖加密(weapi / eapi)、写请求体构造(含歌名里的引号 / 反斜杠 / emoji)、eapi 通道匿名冒烟(拦空 body 回归)、接口解析与下载地址规整、文件名策略、音频标签读写、ETA 与字节格式化、窗口尺寸档位、Cookie 持久化、播放传输策略、本地优先解析、播放快照恢复、路由与返回栈、同步差量、删除范围与撤销,以及解锁的第三方音源解析(用真实响应当 fixture)、候选打分、探活判定、MP3 帧头码率与双开关分流:
+单元测试共 **317 个**(3 个需真实账号或第三方站点的 live 用例按设计跳过),覆盖加密(weapi / eapi)、写请求体构造(含歌名里的引号 / 反斜杠 / emoji)、eapi 通道匿名冒烟(拦空 body 回归)、接口解析与下载地址规整、文件名策略、音频标签读写、ETA 与字节格式化、窗口尺寸档位、Cookie 持久化、播放传输策略、本地优先解析、播放快照恢复、路由与返回栈、同步差量、删除范围与撤销、离线删除的排队与回写,以及解锁的第三方音源解析(用真实响应当 fixture)、候选打分、探活判定、MP3 帧头码率与双开关分流:
 
 需要真实网络的 live 用例默认跳过,按需开启(注意必须 `export`,否则变量传不到 Gradle):
 
