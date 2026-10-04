@@ -1,7 +1,12 @@
 package io.github.adkimsm.neteasedownloader.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,12 +27,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -82,18 +91,57 @@ fun PlaylistDetailScreen(
     action: (@Composable () -> Unit)? = null,
 ) {
     val sizing = LocalWindowSizing.current
-    // 歌单内搜索:纯本地筛选已加载的曲目,不打任何网络请求
+    // 歌单内搜索:纯本地筛选已加载的曲目,不打任何网络请求。
+    // 搜索框默认收起,只在页头点图标后展开 —— 手表竖屏空间金贵,常驻输入框会
+    // 一直吃掉一行多的列表高度。
     var query by rememberSaveable { mutableStateOf("") }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     val visibleTracks = filterTracks(tracks, query)
 
-    ScreenScaffold(title = title, onBack = onBack, action = action) {
+    ScreenScaffold(
+        title = title,
+        onBack = onBack,
+        action = {
+            // 搜索入口与调用方自带的动作并存:有曲目才给入口,空歌单搜不出东西
+            if (tracks.isNotEmpty()) {
+                IconButton(
+                    // 关闭时一并清空关键词:否则输入框收起了、筛选却还在生效,
+                    // 列表看起来就是"歌单莫名少了一半",而用户看不见原因
+                    onClick = {
+                        searchOpen = !searchOpen
+                        if (!searchOpen) query = ""
+                    },
+                    modifier = Modifier.size(sizing.touchTarget),
+                ) {
+                    Icon(
+                        imageVector = if (searchOpen) Icons.Filled.Close else Icons.Filled.Search,
+                        contentDescription = stringResource(
+                            if (searchOpen) R.string.detail_search_close else R.string.detail_search_open,
+                        ),
+                        tint = TextPrimary,
+                        modifier = Modifier.size(sizing.iconSize),
+                    )
+                }
+            }
+            action?.invoke()
+        },
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TrackSearchField(
-                query = query,
-                onQueryChange = { query = it },
-                enabled = tracks.isNotEmpty() || query.isNotEmpty(),
-            )
-            Spacer(Modifier.height(sizing.gapSm))
+            AnimatedVisibility(
+                visible = searchOpen,
+                enter = expandVertically(tween(Motion.ContentDurationMs)) +
+                    fadeIn(tween(Motion.ContentDurationMs)),
+                exit = shrinkVertically(tween(Motion.ContentDurationMs)) +
+                    fadeOut(tween(Motion.ContentDurationMs)),
+            ) {
+                Column {
+                    TrackSearchField(
+                        query = query,
+                        onQueryChange = { query = it },
+                    )
+                    Spacer(Modifier.height(sizing.gapSm))
+                }
+            }
 
             if (error != null) {
                 ErrorBanner(message = error, onRetry = onRetry, onDismiss = onDismissError)
@@ -173,22 +221,25 @@ internal fun filterTracks(tracks: List<SongEntity>, query: String): List<SongEnt
 /**
  * 歌单内搜索框。
  *
- * 只在有曲目(或已经在筛)时出现:空歌单上摆一个搜不出东西的输入框是纯噪声。
- * 带清除键;键盘收起后即完成筛选,不必额外点"搜索"。
+ * 展开即自动聚焦并弹键盘:既然用户特意点了搜索图标,再让他点一次输入框是多余的一步。
+ * 带清除键;按 Done 收起键盘,筛选结果此时已经生效(本地过滤是同步的)。
  */
 @Composable
 private fun TrackSearchField(
     query: String,
     onQueryChange: (String) -> Unit,
-    enabled: Boolean,
 ) {
     val sizing = LocalWindowSizing.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        // 组件只在展开时进入组合,所以这一次请求聚焦就等价于"展开时自动聚焦"
+        runCatching { focusRequester.requestFocus() }
+    }
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         singleLine = true,
-        enabled = enabled,
         placeholder = { Text(stringResource(R.string.detail_search_hint)) },
         leadingIcon = {
             Icon(
@@ -212,7 +263,9 @@ private fun TrackSearchField(
         },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
     )
 }
 
