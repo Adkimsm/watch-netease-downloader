@@ -40,8 +40,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.adkimsm.neteasedownloader.ui.Dest
-import io.github.adkimsm.neteasedownloader.ui.SearchScreen
-import io.github.adkimsm.neteasedownloader.ui.SearchViewModel
 import io.github.adkimsm.neteasedownloader.ui.DiagnosticsScreen
 import io.github.adkimsm.neteasedownloader.ui.LoginScreen
 import io.github.adkimsm.neteasedownloader.ui.LoginUiState
@@ -192,35 +190,12 @@ private fun AppNavigation() {
                         onOpenLiked = mainViewModel::openLikedSongs,
                         onCreatePlaylist = mainViewModel::openPlaylistCreate,
                         loading = loading,
-                        onSearchClick = mainViewModel::openSearch,
                         pendingToggleIds = pendingToggles,
                         errorMessage = errorMessage,
                         onDismissError = mainViewModel::clearError,
                         pendingRemovalCount = pendingRemovals.count,
                         pendingFlushInFlight = flushInFlight,
                         onFlushPending = mainViewModel::flushPendingNow,
-                    )
-                }
-
-                Dest.Search -> {
-                    val searchViewModel: SearchViewModel = viewModel()
-                    val query by searchViewModel.query.collectAsStateWithLifecycle()
-                    val results by searchViewModel.results.collectAsStateWithLifecycle()
-                    val loading by searchViewModel.loading.collectAsStateWithLifecycle()
-                    val error by searchViewModel.error.collectAsStateWithLifecycle()
-                    SearchScreen(
-                        query = query,
-                        results = results,
-                        loading = loading,
-                        error = error,
-                        onQueryChange = searchViewModel::onQueryChange,
-                        onBack = mainViewModel::pop,
-                        onRetry = searchViewModel::retry,
-                        onDismissError = searchViewModel::clearError,
-                        onPlayTrack = { index ->
-                            playerViewModel.playList(results, index, null)
-                        },
-                        onTrackActions = mainViewModel::openSongActions,
                     )
                 }
 

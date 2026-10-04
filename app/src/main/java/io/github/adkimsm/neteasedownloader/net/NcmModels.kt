@@ -146,24 +146,3 @@ data class LikedIdsResp(
     val code: Int = 0,
     val ids: List<Long> = emptyList(),
 )
-
-// ---------- 歌曲搜索 ----------
-
-/** 云端搜索(/api/cloudsearch/get/web) */
-@Serializable
-data class SearchReq(
-    val s: String,
-    val type: Int = 1,
-    val limit: Int = 30,
-    val offset: Int = 0,
-)
-
-@Serializable
-data class SearchResp(val code: Int = 0, val result: SearchResultDto? = null)
-
-/** result.songs 与歌单详情的 SongDto 同构(id/name/ar/al/dt),直接复用 */
-@Serializable
-data class SearchResultDto(
-    val songs: List<SongDto> = emptyList(),
-    val songCount: Int = 0,
-)

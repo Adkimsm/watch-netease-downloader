@@ -208,7 +208,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun openQueue() = push(Dest.Queue)
     fun openSongActions(songId: Long) = push(Dest.SongActions(songId))
     fun openSettings() = push(Dest.Settings)
-    fun openSearch() = push(Dest.Search)
     fun openDiagnostics() = push(Dest.Diagnostics)
 
     // ---------- 同步 ----------

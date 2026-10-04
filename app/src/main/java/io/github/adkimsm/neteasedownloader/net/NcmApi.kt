@@ -175,16 +175,6 @@ class NcmApi(
         return results
     }
 
-    // ---------- 歌曲搜索 ----------
-
-    /** 云端搜索(读操作,走 eapi 通道)。失败抛 NcmApiException,与歌单列表同法 */
-    suspend fun searchSongs(keyword: String, limit: Int = 30): List<SongDto> {
-        if (keyword.isBlank()) return emptyList()
-        val resp = eapi("/api/cloudsearch/get/web", SearchReq(s = keyword, limit = limit))
-        if (resp.code != 200) throw NcmApiException("搜索返回 ${resp.code}")
-        return resp.decode<SearchResp>().result?.songs.orEmpty()
-    }
-
     // ---------- 远端写操作(歌单管理与红心) ----------
     // 这组端点照参考实现 4.32.0 走 eapi:红心列表(likelist.js)与 /api/batch 本就
     // 默认 eapi;加/删曲参考 playlist_tracks.js 走 /api/playlist/manipulate/tracks。
