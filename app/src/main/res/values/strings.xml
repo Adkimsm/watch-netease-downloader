@@ -31,6 +31,9 @@
     <string name="repeat_one">单曲循环</string>
 
     <string name="detail_empty">这个歌单还没有曲目</string>
+    <string name="detail_search_hint">在歌单内搜索</string>
+    <string name="detail_search_empty">没有匹配的歌曲</string>
+    <string name="detail_search_clear">清除</string>
     <string name="detail_track_actions">歌曲操作</string>
     <string name="detail_badge_local">已下载</string>
     <string name="detail_badge_online">在线</string>

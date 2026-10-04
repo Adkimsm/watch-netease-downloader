@@ -300,8 +300,8 @@ private fun AppNavigation() {
                         onBack = mainViewModel::pop,
                         onRetry = detailViewModel::load,
                         onDismissError = detailViewModel::clearError,
-                        onPlayTrack = { index ->
-                            playerViewModel.playList(tracks, index, dest.playlistId)
+                        onPlayTrack = { visible, index ->
+                            playerViewModel.playList(visible, index, dest.playlistId)
                         },
                         onTrackActions = mainViewModel::openSongActions,
                     )
@@ -376,7 +376,7 @@ private fun AppNavigation() {
                         onBack = mainViewModel::pop,
                         onRetry = likedViewModel::load,
                         onDismissError = likedViewModel::clearError,
-                        onPlayTrack = { index -> playerViewModel.playList(tracks, index, null) },
+                        onPlayTrack = { visible, index -> playerViewModel.playList(visible, index, null) },
                         onTrackActions = mainViewModel::openSongActions,
                     )
                 }
