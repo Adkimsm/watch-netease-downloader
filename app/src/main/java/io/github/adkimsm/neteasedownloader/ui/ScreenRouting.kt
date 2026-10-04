@@ -43,6 +43,9 @@ sealed interface Dest {
 
     /** 把这首歌加入某些歌单 */
     data class AddToPlaylist(val songId: Long) : Dest
+
+    /** 歌曲搜索 */
+    data object Search : Dest
 }
 
 /**

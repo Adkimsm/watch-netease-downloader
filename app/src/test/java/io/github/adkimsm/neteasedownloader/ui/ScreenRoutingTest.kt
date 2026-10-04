@@ -228,4 +228,21 @@ class ScreenRoutingTest {
         advanceUntilIdle()
         assertEquals(Dest.Diagnostics, states.last().dest)
     }
+
+    @Test
+    fun searchIsStackEntryWithSlideTransition() = runTest {
+        val progress = MutableStateFlow(SyncEngine.Progress(SyncEngine.Stage.IDLE, ""))
+        val diff = MutableStateFlow<SyncEngine.Diff?>(null)
+        val stack = MutableStateFlow<List<Dest>>(listOf(Dest.Search))
+        val states = routesOf(progress, diff, stack)
+        advanceUntilIdle()
+        assertEquals(Dest.Search, states.last().dest)
+
+        // 视觉层级:搜索页压在栈上,进退都是横向滑动(与详情/二级菜单同层)
+        assertEquals(DestLayer.Stacked, layerOf(Dest.Search))
+        assertEquals(NavTransition.Slide, navTransitionFor(Dest.Playlists, Dest.Search))
+        assertTrue(slidesForward(Dest.Playlists, Dest.Search))
+        assertEquals(NavTransition.Slide, navTransitionFor(Dest.Search, Dest.Playlists))
+        assertFalse(slidesForward(Dest.Search, Dest.Playlists))
+    }
 }

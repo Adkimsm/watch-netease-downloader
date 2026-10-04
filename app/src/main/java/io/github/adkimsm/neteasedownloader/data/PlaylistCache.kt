@@ -81,7 +81,54 @@ class PlaylistCache(
         return merged
     }
 
-    private fun merge(old: SongEntity?, dto: SongDto, now: Long): SongEntity = if (old != null) {
+    private fun merge(old: SongEntity?, dto: SongDto, now: Long): SongEntity =
+        songEntityFrom(dto, old, now)
+
+    /**
+     * 补齐红心歌曲的元数据(歌单没有、但红心列表里有的歌也要能显示歌名)。
+     * 返回补到的 song 行。
+     */
+    suspend fun ensureSongMetadata(songIds: List<Long>): List<SongEntity> {
+        if (songIds.isEmpty()) return emptyList()
+        val known = songDao.getByIds(songIds)
+        val missing = songIds.filter { id -> known.none { it.songId == id } }
+        if (missing.isEmpty()) return known
+
+        val now = System.currentTimeMillis()
+        val fetched = api.fetchSongDetails(missing).map { merge(null, it, now) }
+        if (fetched.isNotEmpty()) songDao.upsertAll(fetched)
+        return known + fetched
+    }
+
+    /**
+     * 把搜索结果导入本地 song 表,返回合并后的本地行。
+     *
+     * 只写 song 表,**不碰 playlist_song 关联** —— 搜索结果不属于任何歌单,
+     * 进关联表会干扰同步差量与 deleteUnreferenced 的引用计数。已下载的文件状态
+     * (state/localUri/md5/size)由 [merge] 原样保留。
+     */
+    suspend fun importSongs(dtos: List<SongDto>): List<SongEntity> {
+        if (dtos.isEmpty()) return emptyList()
+        val existing = songDao.getByIds(dtos.map { it.id }).associateBy { it.songId }
+        val now = System.currentTimeMillis()
+        val merged = dtos.map { merge(existing[it.id], it, now) }
+        songDao.upsertAll(merged)
+        return merged
+    }
+
+    private companion object {
+        const val TAG = "PlaylistCache"
+    }
+}
+
+/**
+ * 由远端歌曲详情推导本地行。纯函数,可单测(见 SearchParseTest)。
+ *
+ * 无旧行:新入库,state = PENDING(未下载,由后续同步/串流处理);
+ * 有旧行:只刷新远端元数据,**不动 state/localUri/md5 等本地下载事实**。
+ */
+internal fun songEntityFrom(dto: SongDto, old: SongEntity?, now: Long): SongEntity =
+    if (old != null) {
         old.copy(
             name = dto.name,
             artist = dto.ar.joinToString("/") { it.name },
@@ -104,24 +151,3 @@ class PlaylistCache(
             updatedAt = now,
         )
     }
-
-    /**
-     * 补齐红心歌曲的元数据(歌单没有、但红心列表里有的歌也要能显示歌名)。
-     * 返回补到的 song 行。
-     */
-    suspend fun ensureSongMetadata(songIds: List<Long>): List<SongEntity> {
-        if (songIds.isEmpty()) return emptyList()
-        val known = songDao.getByIds(songIds)
-        val missing = songIds.filter { id -> known.none { it.songId == id } }
-        if (missing.isEmpty()) return known
-
-        val now = System.currentTimeMillis()
-        val fetched = api.fetchSongDetails(missing).map { merge(null, it, now) }
-        if (fetched.isNotEmpty()) songDao.upsertAll(fetched)
-        return known + fetched
-    }
-
-    private companion object {
-        const val TAG = "PlaylistCache"
-    }
-}

@@ -40,6 +40,11 @@
     <string name="detail_source_kuwo">酷我</string>
     <string name="detail_source_kugou">酷狗</string>
 
+    <!-- ==================== 歌曲搜索 ==================== -->
+    <string name="search_title">搜索</string>
+    <string name="search_hint">歌名或歌手</string>
+    <string name="search_empty">没有找到相关歌曲</string>
+
     <string name="settings_stream_quality">在线播放音质</string>
     <string name="settings_remove_scope">删除歌曲时</string>
     <string name="settings_remove_ask">每次都询问</string>
